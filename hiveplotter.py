@@ -1,4 +1,5 @@
 import pyx
+from pyx.metapost.path import beginknot, endknot, smoothknot, tensioncurve
 import networkx as nx
 import numpy as np
 from collections import OrderedDict
@@ -7,8 +8,8 @@ import cmath
 import math
 import copy
 
-class HivePlot():
 
+class HivePlot():
     defaults = {
         "split_axes": None,
         "normalise_axis_length": False,
@@ -33,10 +34,10 @@ class HivePlot():
         self.split_axes = []
         self.normalise_axis_length = False
         self.normalise_node_distribution = False
-        #self.weight_edge_thickness = True
-        self.edge_colour_data = "weight"    # should be numerical
-        #self.background_color = "black"
-        #self.axis_colour = "gray"
+        # self.weight_edge_thickness = True
+        self.edge_colour_data = "weight"  # should be numerical
+        # self.background_color = "black"
+        # self.axis_colour = "gray"
         self.normalise_link_colours = False
         self.node_size = 0.8
         self.canvas = None
@@ -56,7 +57,8 @@ class HivePlot():
         if node_class_names is None:
             node_class_names = set(node_attribute_dict.values())
             if len(node_class_names) > 3:
-                raise ValueError("Nodes should be in 3 or fewer classes based on their {} attribute.".format(self.node_class_attribute))
+                raise ValueError("Nodes should be in 3 or fewer classes based on their {} attribute.".format(
+                    self.node_class_attribute))
             node_class_names = sorted(list(node_class_names))
         else:
             for node in node_attribute_dict:
@@ -85,25 +87,71 @@ class HivePlot():
         c = pyx.canvas.canvas()
         axes = self._create_axes()
         node_positions = self._place_nodes(axes)
-        edge_lines = self._create_edge_info(node_positions)
+
+        if len(axes) == 3:
+            mid_ax_lines = self._create_mid_ax_lines(axes)
+
+            # edge_lines = self._create_straight_edge_info(node_positions, curved=False)
+            edge_lines = self._create_edge_info(node_positions, curved=True, mid_ax_lines=mid_ax_lines)
+        else:
+            raise Exception("2-axis plots not yet implemented")
+
 
         # draw axes
         for axis in axes.values():
-            c.stroke(pyx.path.line(*HivePlot.linestring_to_coords(axis)), [pyx.style.linewidth(1), pyx.color.gray(0.7)])    #todo: customisable
+            c.stroke(pyx.path.line(*HivePlot.linestring_to_coords(axis)),
+                     [pyx.style.linewidth(1.5), pyx.color.gray(0.7)])  # todo: customisable
 
         # draw edges
-        for start, end, colour in edge_lines:
-            c.stroke(pyx.path.line(start[0], start[1], end[0], end[1]), [pyx.style.linewidth(0.05), colour])
+        for edge_tuple in edge_lines:
+            if len(edge_tuple) == 3:
+                start, end, colour = edge_tuple
+                edgepath = pyx.path.line(pyx.path.line(start[0], start[1], end[0], end[1]))
+
+            elif len(edge_tuple) == 4:
+                start, end, colour, midpoint = edge_tuple
+
+                pass
+
+                edgepath = pyx.metapost.path.path([
+                    beginknot(*start), tensioncurve(),
+                    smoothknot(*midpoint), tensioncurve(),
+                    endknot(*end)
+                ])
+
+            c.stroke(edgepath, [pyx.style.linewidth(0.5), colour])
 
         # draw nodes
         for node, coords in node_positions.items():
-            c.fill(pyx.path.circle(coords[0], coords[1], self.node_size), [pyx.color.rgb.red])   #todo: make colour interesting
+            c.fill(pyx.path.circle(coords[0], coords[1], self.node_size),
+                   [pyx.color.rgb.green])  # todo: make colour interesting
 
         self.canvas = c
 
         self.save_canvas(save_path)
 
         return True
+
+    def _create_mid_ax_lines(self, axes):
+        """
+        For every pair of axes, create a line segment which bisects the angle between them and extends from where a line connecting their base would intersect with the bisecting line, and where a line connecting their tips would intersect with the bisecting line.
+        :param axes: A dictionary whose keys are the names of the axes in the plot, and values are the LineString objects describing those axes
+        :return: A dictionary whose keys are tuples of the names of the two axes the line is between, and the values are LineString objects describing that line
+        """
+        ax_names = list(axes.keys())
+        mid_ids = []
+        for i, ax_name in enumerate(ax_names[:-1]):
+            mid_ids.append(tuple(sorted([ax_name, ax_names[i + 1]])))
+        mid_ids.append(tuple(sorted([ax_names[-1], ax_names[0]])))
+
+        mid_ax_lines = dict()
+        for mid_id in mid_ids:
+            start_to_start = geom.LineString([axes[mid_id[0]].coords[0], axes[mid_id[1]].coords[0]])
+            end_to_end = geom.LineString([axes[mid_id[0]].coords[1], axes[mid_id[1]].coords[1]])
+
+            mid_ax_lines[mid_id] = geom.LineString([self._place_point_on_line(start_to_start, 0.5), self._place_point_on_line(end_to_end, 0.5)])
+
+        return mid_ax_lines
 
     def save_canvas(self, path):
         self.canvas.writePDFfile(path)
@@ -185,9 +233,9 @@ class HivePlot():
             sorted_degrees = sorted(degrees, key=lambda degree: degree[1])
             degrees_arr = np.array(sorted_degrees, dtype="float64")
             if not self.normalise_axis_length:
-                degrees_arr[:, 1] = degrees_arr[:, 1]/max_degree
+                degrees_arr[:, 1] = degrees_arr[:, 1] / max_degree
             else:
-                degrees_arr[:, 1] = degrees_arr[:, 1]/np.max(degrees_arr[:, 1])
+                degrees_arr[:, 1] = degrees_arr[:, 1] / np.max(degrees_arr[:, 1])
 
             if self.normalise_node_distribution:
                 degrees_arr[:, 1] = np.linspace(0, np.max(degrees_arr[:, 1]), num=len(degrees_arr[:, 1]))
@@ -204,7 +252,7 @@ class HivePlot():
         :param distance: Length of projection
         :return: (x, y) tuple of ending coordinates
         """
-        angle = 90-angle
+        angle = 90 - angle
         if angle < -180:
             angle += 360
 
@@ -228,11 +276,12 @@ class HivePlot():
     def deepcopy(self):
         return copy.deepcopy(self)
 
-    def _create_edge_info(self, node_positions):
+    def _create_edge_info(self, node_positions, curved=False, mid_ax_lines=None):
         working_nodes = self._get_working_nodes()
         edges = dict()
         for edge in self.network.edges_iter(data=True):
-            if self.network.node[edge[0]][self.node_class_attribute] == self.network.node[edge[1]][self.node_class_attribute]:
+            if self.network.node[edge[0]][self.node_class_attribute] == self.network.node[edge[1]][
+                self.node_class_attribute]:
                 continue
             undirected = set(edge[:2])
             if undirected.issubset(edges):
@@ -250,9 +299,39 @@ class HivePlot():
             for edge in edges:
                 edges[edge] = old_new_weights[edges[edge]]
 
+        if curved:
+            crossing_points = dict()
+            intersection_points = {mid_ax_line: [] for mid_ax_line in mid_ax_lines}
+            for edge in edges:
+                mid_ax_line, intersection = self._get_name_and_point_of_intersection(edge, node_positions, mid_ax_lines)
+                intersection_proportion = np.linalg.norm(np.array(intersection))/mid_ax_lines[mid_ax_line].length
+                intersection_points[mid_ax_line].append((edge, intersection_proportion))
+
+            for mid_ax_line in mid_ax_lines:
+                sorted_edges = np.array(sorted(intersection_points[mid_ax_line], key=lambda point: point[1]))
+                #maximum = sorted_edges[-1, 1]
+                #sorted_edges[:, 1] = np.linspace(0, maximum, np.shape(sorted_edges)[0])
+
+                for edge, crossing_proportion in sorted_edges:
+                    crossing_points[edge] = self._place_point_on_line(mid_ax_lines[mid_ax_line], 2*crossing_proportion)    # todo: change magic 2
+
         retlist = []
-        for edge in edges.items():
-            start, end = tuple(edge[0])
-            retlist.append((node_positions[start], node_positions[end], pyx.color.rgb.blue))    #todo: make colour do something interesting
+        for edge in edges:
+            start, end = edge
+            if curved:
+                retlist.append((node_positions[start], node_positions[end],
+                            pyx.color.gradient.BlueRed.getcolor(edges[edge]), crossing_points[edge]))  # todo: make colour do something interesting
+            else:
+                retlist.append((node_positions[start], node_positions[end],
+                            pyx.color.gradient.BlueRed.getcolor(edges[edge])))  # todo: make colour do something interesting
+
 
         return retlist
+
+    @staticmethod
+    def _get_name_and_point_of_intersection(edge, node_positions, mid_ax_lines):
+        line = geom.LineString([node_positions[edge[0]], node_positions[edge[1]]])
+        for mid_ax_line in mid_ax_lines:
+            if line.intersects(mid_ax_lines[mid_ax_line]):
+                return mid_ax_line, line.intersection(mid_ax_lines[mid_ax_line])
+
