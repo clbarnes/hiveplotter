@@ -34,6 +34,7 @@ class HivePlot():
         self.split_axes = []
         self.normalise_axis_length = False
         self.normalise_node_distribution = False
+        self.edge_thickness = 0.1
         # self.weight_edge_thickness = True
         self.edge_colour_data = "weight"  # should be numerical
         # self.background_color = "black"
@@ -61,9 +62,12 @@ class HivePlot():
                     self.node_class_attribute))
             node_class_names = sorted(list(node_class_names))
         else:
+            for_deletion = []
             for node in node_attribute_dict:
                 if node_attribute_dict[node] not in node_class_names:
-                    node_attribute_dict.pop(node)
+                    for_deletion.append(node)
+            for fd in for_deletion:
+                node_attribute_dict.pop(fd)
 
         split_nodes = OrderedDict({node_class: [] for node_class in node_class_names})
         node_list = list(node_attribute_dict)
@@ -119,7 +123,7 @@ class HivePlot():
                     endknot(*end)
                 ])
 
-            c.stroke(edgepath, [pyx.style.linewidth(0.5), colour])
+            c.stroke(edgepath, [pyx.style.linewidth(self.edge_thickness), colour])
 
         # draw nodes
         for node, coords in node_positions.items():
@@ -231,7 +235,7 @@ class HivePlot():
         for node_class in self.node_classes:
             degrees = nx.degree(self.network, nbunch=self.node_classes[node_class]).items()
             sorted_degrees = sorted(degrees, key=lambda degree: degree[1])
-            degrees_arr = np.array(sorted_degrees, dtype="float64")
+            degrees_arr = np.array(sorted_degrees, dtype="object")
             if not self.normalise_axis_length:
                 degrees_arr[:, 1] = degrees_arr[:, 1] / max_degree
             else:
@@ -285,9 +289,9 @@ class HivePlot():
                 continue
             undirected = set(edge[:2])
             if undirected.issubset(edges):
-                edges[tuple(sorted(undirected))] += edge[2][self.edge_colour_data]
+                edges[tuple(sorted(undirected))] += float(edge[2][self.edge_colour_data])
             elif undirected.issubset(working_nodes):
-                edges[tuple(sorted(undirected))] = edge[2][self.edge_colour_data]
+                edges[tuple(sorted(undirected))] = float(edge[2][self.edge_colour_data])
 
         maximum = max([weight for weight in edges.values()])
         for edge in edges:
