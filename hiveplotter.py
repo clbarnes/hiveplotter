@@ -24,8 +24,8 @@ class HivePlot():
         :return:
         """
         self.network = network
-        self.node_classes = self._split_nodes(node_class_values)
         self.node_class_attribute = node_class_attribute
+        self.node_classes = self._split_nodes(node_class_values)
 
         # define default behaviour, which can be overridden with kwargs
         self.axis_length = 100
@@ -51,7 +51,7 @@ class HivePlot():
         :param node_class_names: Values of node_class_attribute which will be included in the plot (in clockwise order)
         :return: A dictionary whose keys are the node class attribute values, and values are lists of nodes belonging to that class
         """
-        node_attribute_dict = nx.get_node_attributes(self.node_class_attribute)
+        node_attribute_dict = nx.get_node_attributes(self.network, self.node_class_attribute)
 
         if node_class_names is None:
             node_class_names = set(node_attribute_dict.values())
@@ -64,7 +64,7 @@ class HivePlot():
                     node_attribute_dict.pop(node)
 
         split_nodes = OrderedDict({node_class: [] for node_class in node_class_names})
-        node_list = node_attribute_dict.keys()
+        node_list = list(node_attribute_dict)
         for i, node_class in enumerate(node_attribute_dict.values()):
             split_nodes[node_class].append(node_list[i])
 
@@ -74,11 +74,14 @@ class HivePlot():
         """
         :return: The set of all nodes to be included in the plot
         """
-        working_nodes = []
-        map(working_nodes.extend, self.node_classes.values())
-        return set(working_nodes)
+        working_nodes = set()
 
-    def draw(self, path):
+        for node_class_values in self.node_classes.values():
+            working_nodes |= set(node_class_values)
+
+        return working_nodes
+
+    def draw(self, save_path):
         c = pyx.canvas.canvas()
         axes = self._create_axes()
         node_positions = self._place_nodes(axes)
@@ -86,19 +89,19 @@ class HivePlot():
 
         # draw axes
         for axis in axes.values():
-            c.stroke(pyx.path.line(*HivePlot.linestring_to_coords(axis)), [pyx.style.linewidth.THICK, pyx.color.gray(0.5)])
+            c.stroke(pyx.path.line(*HivePlot.linestring_to_coords(axis)), [pyx.style.linewidth(1), pyx.color.gray(0.7)])    #todo: customisable
 
         # draw edges
         for start, end, colour in edge_lines:
-            c.stroke(path.line(start[0], start[1], end[0], end[1]), [colour])
+            c.stroke(pyx.path.line(start[0], start[1], end[0], end[1]), [pyx.style.linewidth(0.05), colour])
 
         # draw nodes
         for node, coords in node_positions.items():
-            c.fill(pyx.path.circle(coords[0], coords[1], self.node_size), [pyx.color.gray[1]])
+            c.fill(pyx.path.circle(coords[0], coords[1], self.node_size), [pyx.color.rgb.red])   #todo: make colour interesting
 
         self.canvas = c
 
-        self.save_canvas(path)
+        self.save_canvas(save_path)
 
         return True
 
@@ -120,8 +123,8 @@ class HivePlot():
         Generate axes on which to plot nodes
         :return: A dictionary whose keys are the node class attribute values, and values are LineStrings of the axis those nodes will be plotted on
         """
-        num_classes = len(self.node_classes)
         classes = list(self.node_classes)
+        num_classes = len(classes)
         axes = OrderedDict()
 
         offset = self.proportional_offset_from_intersection * self.axis_length
@@ -133,9 +136,9 @@ class HivePlot():
             axes[classes[1]] = geom.LineString([(0, -offset), (0, - self.axis_length - offset)])
         elif num_classes == 3:
             axes[classes[0]] = geom.LineString([(0, offset), (0, self.axis_length + offset)])
-            ax2_start = HivePlot._get_projecting_line((0, 0), 120, offset).coords[1]
+            ax2_start = HivePlot._get_projection((0, 0), 120, offset)
             axes[classes[1]] = HivePlot._get_projecting_line(ax2_start, 120, self.axis_length)
-            ax3_start = HivePlot._get_projecting_line((0, 0), 240, offset).coords[1]
+            ax3_start = HivePlot._get_projection((0, 0), 240, offset)
             axes[classes[2]] = HivePlot._get_projecting_line(ax3_start, 240, self.axis_length)
 
         return axes
@@ -169,7 +172,6 @@ class HivePlot():
         vector_from_start = vector * proportion
         return tuple(start + vector_from_start)
 
-
     def _order_nodes(self):
         """
         Order nodes by their degree.
@@ -181,11 +183,11 @@ class HivePlot():
         for node_class in self.node_classes:
             degrees = nx.degree(self.network, nbunch=self.node_classes[node_class]).items()
             sorted_degrees = sorted(degrees, key=lambda degree: degree[1])
-            degrees_arr = np.array(sorted_degrees)
+            degrees_arr = np.array(sorted_degrees, dtype="float64")
             if not self.normalise_axis_length:
                 degrees_arr[:, 1] = degrees_arr[:, 1]/max_degree
             else:
-                degrees_arr[:, 1] = degrees_arr[:, 1]/np.max(degrees_arr[:,1])
+                degrees_arr[:, 1] = degrees_arr[:, 1]/np.max(degrees_arr[:, 1])
 
             if self.normalise_node_distribution:
                 degrees_arr[:, 1] = np.linspace(0, np.max(degrees_arr[:, 1]), num=len(degrees_arr[:, 1]))
@@ -210,8 +212,8 @@ class HivePlot():
 
         start = complex(startpoint[0], startpoint[1])
         movement = cmath.rect(distance, angle_r)
-        end = start + movement   #TODO check this, I think it needs to be np arrays
-        return end
+        end = start + movement
+        return end.real, end.imag
 
     @staticmethod
     def _get_projecting_line(startpoint, angle, distance):
@@ -229,12 +231,14 @@ class HivePlot():
     def _create_edge_info(self, node_positions):
         working_nodes = self._get_working_nodes()
         edges = dict()
-        for edge in self.network.edge_iter(data=True):
-            undirected = {edge[0], edge[1]}
+        for edge in self.network.edges_iter(data=True):
+            if self.network.node[edge[0]][self.node_class_attribute] == self.network.node[edge[1]][self.node_class_attribute]:
+                continue
+            undirected = set(edge[:2])
             if undirected.issubset(edges):
-                edges[undirected] += edge[2][self.edge_colour_data]
+                edges[tuple(sorted(undirected))] += edge[2][self.edge_colour_data]
             elif undirected.issubset(working_nodes):
-                edges[undirected] = edge[2][self.edge_colour_data]
+                edges[tuple(sorted(undirected))] = edge[2][self.edge_colour_data]
 
         maximum = max([weight for weight in edges.values()])
         for edge in edges:
@@ -249,6 +253,6 @@ class HivePlot():
         retlist = []
         for edge in edges.items():
             start, end = tuple(edge[0])
-            retlist.append((node_positions[start], node_positions[end], pyx.color.hsb(edge[1])))
+            retlist.append((node_positions[start], node_positions[end], pyx.color.rgb.blue))    #todo: make colour do something interesting
 
         return retlist
