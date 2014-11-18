@@ -7,6 +7,10 @@ from shapely import geometry as geom
 import cmath
 import math
 import copy
+from collections import Counter
+import os
+from matplotlib import pyplot as plt
+import random
 
 
 class HivePlot():
@@ -29,23 +33,48 @@ class HivePlot():
         self.node_classes = self._split_nodes(node_class_values)
 
         # define default behaviour, which can be overridden with kwargs
-        self.axis_length = 100
+        self.axis_length = 10
         self.proportional_offset_from_intersection = 0.2  # as a proportion of the longest axis
         self.split_axes = []
         self.normalise_axis_length = False
         self.normalise_node_distribution = False
-        self.edge_thickness = 0.1
-        # self.weight_edge_thickness = True
-        self.edge_colour_data = "weight"  # should be numerical
-        # self.background_color = "black"
-        # self.axis_colour = "gray"
+        self.edge_thickness = 0.005
+        # self.weight_edge_thickness = False
+        self.edge_colour_data = "weight"  # should be a numerical attribute, or "random"
+        self.background_colour = "White"
+        #self.text_colour = "White"
+        self.axis_colour = "Gray"
+        self.axis_thickness = 0.15
         self.normalise_link_colours = False
-        self.node_size = 0.8
+        self.node_size = 0.08
         self.canvas = None
+        self.edge_colour_gradient = "Jet"
+        self.node_colour_gradient = "GreenRed"
+        self.edge_curvature = 1.7
 
         self.__dict__.update(kwargs)
 
         # define internal data stuctures used to
+
+    def convert_colour(self, input):
+        """
+        Convert user input into a pyx colour object.
+        :param input: string corresponding to pyx's RGB or CMYK named colours, tuple of (r,g,b) values, or greyscale value between 0 and 1
+        :return: pyx.color object
+        """
+        try:
+            return eval("pyx.color.rgb." + input)
+        except: pass
+        try:
+            return eval("pyx.color.cmyk." + input)
+        except: pass
+        try:
+            return pyx.color.rgb(*input)
+        except: pass
+        try:
+            return pyx.color.gray(input)
+        except:
+            return pyx.color.gray(0.5)
 
     def _split_nodes(self, node_class_names):
         """
@@ -56,11 +85,11 @@ class HivePlot():
         node_attribute_dict = nx.get_node_attributes(self.network, self.node_class_attribute)
 
         if node_class_names is None:
-            node_class_names = set(node_attribute_dict.values())
+            node_class_names = list(node_attribute_dict.values())
             if len(node_class_names) > 3:
                 raise ValueError("Nodes should be in 3 or fewer classes based on their {} attribute.".format(
                     self.node_class_attribute))
-            node_class_names = sorted(list(node_class_names))
+            node_class_names = sorted(node_class_names)
         else:
             for_deletion = []
             for node in node_attribute_dict:
@@ -87,8 +116,65 @@ class HivePlot():
 
         return working_nodes
 
-    def draw(self, save_path):
-        c = pyx.canvas.canvas()
+    def _draw_background(self):
+        max_length = (self.axis_length * (1 + self.proportional_offset_from_intersection)) * self.edge_curvature
+        colour = self.convert_colour(self.background_colour)
+        self.canvas.fill(pyx.path.rect(-max_length, -max_length, 2 * max_length, 2 * max_length), [colour])
+
+    def _draw_axes(self, axes):
+        axis_colour = self.convert_colour(self.axis_colour)
+        for axis in axes.values():
+            self.canvas.stroke(pyx.path.line(*HivePlot.linestring_to_coords(axis)),
+                     [pyx.style.linewidth(self.axis_thickness), axis_colour])
+
+    def _draw_labels(self, axes):
+        text_alignment_list = [
+            [pyx.text.halign.boxcenter, pyx.text.valign.bottom],
+            [pyx.text.halign.boxleft, pyx.text.valign.top],
+            [pyx.text.halign.boxright, pyx.text.valign.top]
+        ]
+        text_alignment = dict(zip(list(axes), text_alignment_list))
+        for axis_name in axes:
+            line_end = axes[axis_name].coords[1]
+            txt_str = axis_name
+            self.canvas.text(line_end[0], line_end[1],
+                   txt_str,
+                   text_alignment[axis_name])
+
+    def _draw_edges(self, edge_lines):
+        for edge_dict in edge_lines:
+            start = edge_dict["start"]
+            end = edge_dict["end"]
+            colour = edge_dict["colour"]
+
+            if "crossing_point" in edge_dict:
+                midpoint = edge_dict["crossing_point"]
+
+                edgepath = pyx.metapost.path.path([
+                    beginknot(*start), tensioncurve(),
+                    smoothknot(*midpoint), tensioncurve(),
+                    endknot(*end)
+                ])
+            else:
+                edgepath = pyx.path.line(pyx.path.line(start[0], start[1], end[0], end[1]))
+
+            self.canvas.stroke(edgepath, [pyx.style.linewidth(self.edge_thickness), colour])
+
+    def _draw_nodes(self, node_positions):
+        gradient = eval("pyx.color.gradient." + self.node_colour_gradient)
+        node_position_weights = self._weight_by_colocation(node_positions)
+        for coords, weight in node_position_weights.items():
+            self.canvas.stroke(pyx.path.circle(coords[0], coords[1], self.node_size))
+            self.canvas.fill(pyx.path.circle(coords[0], coords[1], self.node_size),
+                   [gradient.getcolor(weight)])
+
+    def draw(self, save_path=None, show=False):
+        """
+        Draw the graph using the current settings
+        :param save_path: path of PDF file to save graph into
+        :return: True for successful completion
+        """
+        self.canvas = pyx.canvas.canvas()
         axes = self._create_axes()
         node_positions = self._place_nodes(axes)
 
@@ -98,43 +184,29 @@ class HivePlot():
             # edge_lines = self._create_straight_edge_info(node_positions, curved=False)
             edge_lines = self._create_edge_info(node_positions, curved=True, mid_ax_lines=mid_ax_lines)
         else:
-            raise Exception("2-axis plots not yet implemented")
+            raise NotImplementedError("2-axis plots not yet implemented")
 
+        self._draw_background()
+        self._draw_axes(axes)
+        self._draw_labels(axes)
+        self._draw_edges(edge_lines)
+        self._draw_nodes(node_positions)
 
-        # draw axes
-        for axis in axes.values():
-            c.stroke(pyx.path.line(*HivePlot.linestring_to_coords(axis)),
-                     [pyx.style.linewidth(1.5), pyx.color.gray(0.7)])  # todo: customisable
+        if not save_path is None:
+            self.save_canvas(save_path)
 
-        # draw edges
-        for edge_tuple in edge_lines:
-            if len(edge_tuple) == 3:
-                start, end, colour = edge_tuple
-                edgepath = pyx.path.line(pyx.path.line(start[0], start[1], end[0], end[1]))
-
-            elif len(edge_tuple) == 4:
-                start, end, colour, midpoint = edge_tuple
-
-                pass
-
-                edgepath = pyx.metapost.path.path([
-                    beginknot(*start), tensioncurve(),
-                    smoothknot(*midpoint), tensioncurve(),
-                    endknot(*end)
-                ])
-
-            c.stroke(edgepath, [pyx.style.linewidth(self.edge_thickness), colour])
-
-        # draw nodes
-        for node, coords in node_positions.items():
-            c.fill(pyx.path.circle(coords[0], coords[1], self.node_size),
-                   [pyx.color.rgb.green])  # todo: make colour interesting
-
-        self.canvas = c
-
-        self.save_canvas(save_path)
+        if show:
+            self.show()
 
         return True
+
+    def show(self):
+        tmp_path = "tmp/tmpfig.pdf"
+        self.save_canvas(tmp_path)
+        img = plt.imread(tmp_path)
+        plt.imshow(img)
+        plt.show()
+        os.remove(tmp_path)
 
     def _create_mid_ax_lines(self, axes):
         """
@@ -284,14 +356,21 @@ class HivePlot():
         working_nodes = self._get_working_nodes()
         edges = dict()
         for edge in self.network.edges_iter(data=True):
+            # prevent intra-axis edge
             if self.network.node[edge[0]][self.node_class_attribute] == self.network.node[edge[1]][
-                self.node_class_attribute]:
+                    self.node_class_attribute]:
                 continue
+
             undirected = set(edge[:2])
-            if undirected.issubset(edges):
-                edges[tuple(sorted(undirected))] += float(edge[2][self.edge_colour_data])
+
+            if undirected.issubset(edges):    # if edge already exists in data set
+                if self.edge_colour_data is not "random":
+                    edges[tuple(sorted(undirected))] += float(edge[2][self.edge_colour_data])
             elif undirected.issubset(working_nodes):
-                edges[tuple(sorted(undirected))] = float(edge[2][self.edge_colour_data])
+                if self.edge_colour_data is not "random":
+                    edges[tuple(sorted(undirected))] = float(edge[2][self.edge_colour_data])
+                else:
+                    edges[tuple(sorted(undirected))] = random.random()
 
         maximum = max([weight for weight in edges.values()])
         for edge in edges:
@@ -317,19 +396,20 @@ class HivePlot():
                 #sorted_edges[:, 1] = np.linspace(0, maximum, np.shape(sorted_edges)[0])
 
                 for edge, crossing_proportion in sorted_edges:
-                    crossing_points[edge] = self._place_point_on_line(mid_ax_lines[mid_ax_line], 2*crossing_proportion)    # todo: change magic 2
+                    crossing_points[edge] = self._place_point_on_line(mid_ax_lines[mid_ax_line], self.edge_curvature*crossing_proportion)
 
+        gradient = eval("pyx.color.gradient." + self.edge_colour_gradient)
         retlist = []
         for edge in edges:
             start, end = edge
+            entry = {
+                "start": node_positions[start],
+                "end": node_positions[end],
+                "colour": gradient.getcolor(edges[edge]),
+            }
             if curved:
-                retlist.append((node_positions[start], node_positions[end],
-                            pyx.color.gradient.BlueRed.getcolor(edges[edge]), crossing_points[edge]))  # todo: make colour do something interesting
-            else:
-                retlist.append((node_positions[start], node_positions[end],
-                            pyx.color.gradient.BlueRed.getcolor(edges[edge])))  # todo: make colour do something interesting
-
-
+                entry["crossing_point"] = crossing_points[edge]
+            retlist.append(entry)
         return retlist
 
     @staticmethod
@@ -338,4 +418,13 @@ class HivePlot():
         for mid_ax_line in mid_ax_lines:
             if line.intersects(mid_ax_lines[mid_ax_line]):
                 return mid_ax_line, line.intersection(mid_ax_lines[mid_ax_line])
+
+    def _weight_by_colocation(self, node_positions):
+        tally = Counter(list(node_positions.values()))
+        tally_arr = np.array(list(tally.items()), dtype="object")
+        tally_arr[:, 1] = tally_arr[:, 1]/np.max(tally_arr[:, 1])
+        return dict(tally_arr)
+
+
+
 

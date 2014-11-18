@@ -53,6 +53,6 @@ docs/_build/
 # PyBuilder
 target/
 
-test.py
-output/
 data/
+output/
+test.py
