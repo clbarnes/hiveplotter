@@ -7,8 +7,7 @@ from shapely import geometry as geom
 from geom_utils import linestring_to_coords, get_projecting_line, get_projection, place_point_on_line
 import copy
 from collections import Counter
-import os
-from matplotlib import pyplot as plt
+from colour_utils import convert_colour, categories_to_float
 import random
 
 
@@ -33,18 +32,19 @@ class HivePlot():
         self.normalise_node_distribution = False
         self.edge_thickness = 0.005
         # self.weight_edge_thickness = False
-        self.edge_colour_data = "weight"  # should be a numerical attribute, or "random"
-        self.background_colour = "White"
-        self.label_colour = "Green"
-        self.label_size = 10   # must be between 5 and 25
+        self.edge_colour_attribute = "weight"
+        self.edge_colour_gradient = "Jet"
+        self.edge_category_colours = None
+        self.edge_curvature = 1.7
+        self.background_colour = "Black"
+        self.label_colour = "White"
+        self.label_size = 15
         self.axis_colour = "Gray"
         self.axis_thickness = 0.15
         self.normalise_link_colours = False
         self.node_size = 0.08
         self.canvas = None
-        self.edge_colour_gradient = "Jet"
         self.node_colour_gradient = "GreenRed"
-        self.edge_curvature = 1.7
 
         self.__dict__.update(kwargs)
 
@@ -277,32 +277,45 @@ class HivePlot():
     def _create_edge_info(self, node_positions, curved=False, mid_ax_lines=None):
         working_nodes = self._get_working_nodes()
         edges = dict()
+        is_colour_attr_numerical = False if self.edge_category_colours or self.edge_colour_attribute is "random" else None
         for edge in self.network.edges_iter(data=True):
+            if is_colour_attr_numerical is None:
+                try:
+                    float(edge[2][self.edge_colour_attribute])
+                    is_colour_attr_numerical = True
+                except ValueError:
+                    is_colour_attr_numerical = False
+                    if self.edge_category_colours is None:
+                        self.edge_category_colours = categories_to_float(self._get_edges_colour_attr())
+
             # prevent intra-axis edge
             if self.network.node[edge[0]][self.node_class_attribute] == self.network.node[edge[1]][
-                self.node_class_attribute]:
+                    self.node_class_attribute]:
                 continue
 
-            undirected = set(edge[:2])
+            key = tuple(sorted(edge[:2]))
 
-            if undirected.issubset(edges):    # if edge already exists in data set
-                if self.edge_colour_data is not "random":
-                    edges[tuple(sorted(undirected))] += float(edge[2][self.edge_colour_data])
-            elif undirected.issubset(working_nodes):
-                if self.edge_colour_data is not "random":
-                    edges[tuple(sorted(undirected))] = float(edge[2][self.edge_colour_data])
+            if key in edges:    # if edge already exists in data set
+                if self.edge_colour_attribute is not "random" and is_colour_attr_numerical:
+                    edges[key] += float(edge[2][self.edge_colour_attribute])
+            elif set(key).issubset(working_nodes):
+                if is_colour_attr_numerical:
+                    edges[key] = float(edge[2][self.edge_colour_attribute])
+                elif self.edge_colour_attribute is "random":
+                    edges[key] = random.random()
                 else:
-                    edges[tuple(sorted(undirected))] = random.random()
+                    edges[key] = self.edge_category_colours[edge[2][self.edge_colour_attribute]]
 
-        maximum = max([weight for weight in edges.values()])
-        for edge in edges:
-            edges[edge] /= maximum
-
-        if self.normalise_link_colours:
-            old_new_weights = dict(zip(sorted(edges.values()), range(len(edges))))
-
+        if is_colour_attr_numerical:
+            maximum = max([weight for weight in edges.values()])
             for edge in edges:
-                edges[edge] = old_new_weights[edges[edge]]
+                edges[edge] /= maximum
+
+            if self.normalise_link_colours:
+                old_new_weights = dict(zip(sorted(edges.values()), range(len(edges))))
+
+                for edge in edges:
+                    edges[edge] = old_new_weights[edges[edge]]
 
         if curved:
             crossing_points = dict()
@@ -324,11 +337,12 @@ class HivePlot():
         retlist = []
         for edge in edges:
             start, end = edge
+            colour = gradient.getcolor(edges[edge]) if isinstance(edges[edge], (float, int)) else convert_colour(edges[edge])
             entry = {
                 "start": node_positions[start],
                 "end": node_positions[end],
-                "colour": gradient.getcolor(edges[edge]),
-                }
+                "colour": colour
+            }
             if curved:
                 entry["crossing_point"] = crossing_points[edge]
             retlist.append(entry)
@@ -356,46 +370,5 @@ class HivePlot():
         col = convert_colour(self.label_colour)
         pyx.text.preamble(r"\definecolor{COL}{cmyk}{%g,%g,%g,%g}" % (col.c, col.m, col.y, col.k))
 
-
-def convert_colour(input):
-    """
-    Convert user input into a pyx colour object.
-    :param input: string corresponding to pyx's RGB or CMYK named colours, tuple of (r,g,b) values, or greyscale value between 0 and 1
-    :return: pyx.color.cmyk object
-    """
-    try:
-        return eval("pyx.color.cmyk." + input)
-    except: pass
-    try:
-        return _rgb_obj_to_cmyk_obj(eval("pyx.color.rgb." + input))
-    except:
-        pass
-    try:
-        return _rgb_to_cmyk_obj(*input)
-    except: pass
-    try:
-        return _greyscale_to_cmyk_obj(input)
-    except:
-        return _greyscale_to_cmyk_obj(0.5)
-
-
-def _rgb_obj_to_cmyk_obj(rgb_obj):
-    return _rgb_to_cmyk_obj(rgb_obj.r, rgb_obj.g, rgb_obj.b)
-
-
-def _rgb_to_cmyk_obj(r, g, b):
-    c = 1-r
-    m = 1-g
-    y = 1-b
-
-    min_cmy = min(c, m, y)
-    c = (c - min_cmy) / (1 - min_cmy)
-    m = (m - min_cmy) / (1 - min_cmy)
-    y = (y - min_cmy) / (1 - min_cmy)
-    k = min_cmy
-
-    return pyx.color.cmyk(c, m, y, k)
-
-
-def _greyscale_to_cmyk_obj(grey_val):
-    return pyx.color.cmyk(0, 0, 0, 1 - grey_val)
+    def _get_edges_colour_attr(self):
+        return set(nx.get_edge_attributes(self.network, self.edge_colour_attribute).values())
