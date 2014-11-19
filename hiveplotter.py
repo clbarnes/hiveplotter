@@ -23,7 +23,10 @@ class HivePlot():
         """
         self.network = network
         self.node_class_attribute = node_class_attribute
+        print(node_class_values)
         self.node_classes = self._split_nodes(node_class_values)
+        print(list(self.node_classes))
+        print("_____________")
 
         # define default behaviour, which can be overridden with kwargs
         self.axis_length = 10
@@ -69,7 +72,7 @@ class HivePlot():
             for fd in for_deletion:
                 node_attribute_dict.pop(fd)
 
-        split_nodes = OrderedDict({node_class: [] for node_class in node_class_names})
+        split_nodes = OrderedDict([(node_class, []) for node_class in node_class_names])
         node_list = list(node_attribute_dict)
         for i, node_class in enumerate(node_attribute_dict.values()):
             split_nodes[node_class].append(node_list[i])
@@ -139,7 +142,7 @@ class HivePlot():
             self.canvas.fill(pyx.path.circle(coords[0], coords[1], self.node_size),
                              [gradient.getcolor(weight)])
 
-    def draw(self, save_path=None, show=False):
+    def draw(self, save_path=None):
         """
         Draw the graph using the current settings
         :param save_path: path of PDF file to save graph into
@@ -166,18 +169,7 @@ class HivePlot():
         if not save_path is None:
             self.save_canvas(save_path)
 
-        if show:
-            self.show()
-
         return True
-
-    def show(self):
-        tmp_path = "tmp/tmpfig.pdf"
-        self.save_canvas(tmp_path)
-        img = plt.imread(tmp_path)
-        plt.imshow(img)
-        plt.show()
-        os.remove(tmp_path)
 
     def _create_mid_ax_lines(self, axes):
         """
