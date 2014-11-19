@@ -30,8 +30,7 @@ class HivePlot():
         self.split_axes = []
         self.normalise_axis_length = False
         self.normalise_node_distribution = False
-        self.edge_thickness = 0.005
-        # self.weight_edge_thickness = False
+        self.edge_thickness_range = (0.005, 0.16)
         self.edge_colour_attribute = "weight"
         self.edge_colour_gradient = "Jet"
         self.edge_category_colours = None
@@ -122,6 +121,7 @@ class HivePlot():
         return r"\textcolor{COL}{" + text + "}"
 
     def _draw_edges(self, edge_lines):
+
         for edge_dict in edge_lines:
             start = edge_dict["start"]
             end = edge_dict["end"]
@@ -138,7 +138,10 @@ class HivePlot():
             else:
                 edgepath = pyx.path.line(pyx.path.line(start[0], start[1], end[0], end[1]))
 
-            self.canvas.stroke(edgepath, [pyx.style.linewidth(self.edge_thickness), colour])
+            self.canvas.stroke(edgepath, [
+                pyx.style.linewidth(edge_dict["thickness"]),
+                colour
+            ])
 
     def _draw_nodes(self, node_positions):
         gradient = eval("pyx.color.gradient." + self.node_colour_gradient)
@@ -278,7 +281,13 @@ class HivePlot():
         working_nodes = self._get_working_nodes()
         edges = dict()
         is_colour_attr_numerical = False if self.edge_category_colours or self.edge_colour_attribute is "random" else None
+        edge_weights = set()
         for edge in self.network.edges_iter(data=True):
+            if "weight" in edge[2]:
+                edge_weights.add(edge[2]["weight"])
+            else:
+                edge_weights.add(1)
+
             if is_colour_attr_numerical is None:
                 try:
                     float(edge[2][self.edge_colour_attribute])
@@ -306,8 +315,20 @@ class HivePlot():
                 else:
                     edges[key] = self.edge_category_colours[edge[2][self.edge_colour_attribute]]
 
+        min_weight = min(edge_weights)
+        weight_range = max(edge_weights) - min_weight
+        min_thickness = min(self.edge_thickness_range)
+        thickness_range = max(self.edge_thickness_range) - min_thickness
+        edge_thickness_dict = dict()
+        for edge in self.network.edges_iter(data=True):
+            key = tuple(sorted(edge[:2]))
+            if "weight" in edge[2]:
+                edge_thickness_dict[key] = ((edge[2]["weight"] - min_weight)/weight_range * thickness_range) + min_thickness
+            else:
+                edge_thickness_dict[key] = min_thickness
+
         if is_colour_attr_numerical:
-            maximum = max([weight for weight in edges.values()])
+            maximum = max([colour_attr_val for colour_attr_val in edges.values()])
             for edge in edges:
                 edges[edge] /= maximum
 
@@ -341,7 +362,8 @@ class HivePlot():
             entry = {
                 "start": node_positions[start],
                 "end": node_positions[end],
-                "colour": colour
+                "colour": colour,
+                "thickness": edge_thickness_dict[edge]
             }
             if curved:
                 entry["crossing_point"] = crossing_points[edge]
