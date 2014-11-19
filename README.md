@@ -2,6 +2,11 @@
 hiveplotter
 ===========
 
-A python library for creating hive plots from networkx graphs
+A python library for creating [hive plots](http://www.hiveplot.net/) from [NetworkX](https://networkx.github.io/) graphs.
 
 WIP
+
+Requires:
+ - LaTeX (probably)
+ - Dependencies specified in the setup.py
+ - Maybe some other stuff (I have no idea what I'm doing)
