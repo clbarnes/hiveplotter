@@ -8,5 +8,6 @@ setup(
     license='MIT',
     author='clbarnes',
     author_email='cbarnes@mrc-lmb.cam.ac.uk',
-    description='A python library for creating hive plots from networkx graphs'
+    description='A python library for creating hive plots from networkx graphs',
+    requires=['matplotlib', 'shapely', 'networkx', 'pyx']
 )

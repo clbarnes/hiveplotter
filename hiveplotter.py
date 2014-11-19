@@ -4,8 +4,7 @@ import networkx as nx
 import numpy as np
 from collections import OrderedDict
 from shapely import geometry as geom
-import cmath
-import math
+from geom_utils import linestring_to_coords, get_projecting_line, get_projection, place_point_on_line
 import copy
 from collections import Counter
 import os
@@ -14,12 +13,6 @@ import random
 
 
 class HivePlot():
-    defaults = {
-        "split_axes": None,
-        "normalise_axis_length": False,
-        "normalise_node_distribution": False
-    }
-
     def __init__(self, network, node_class_attribute="type", node_class_values=None, **kwargs):
         """
         :param network: NetworkX representation of a network to be plotted
@@ -53,28 +46,6 @@ class HivePlot():
         self.edge_curvature = 1.7
 
         self.__dict__.update(kwargs)
-
-        # define internal data stuctures used to
-
-    def convert_colour(self, input):
-        """
-        Convert user input into a pyx colour object.
-        :param input: string corresponding to pyx's RGB or CMYK named colours, tuple of (r,g,b) values, or greyscale value between 0 and 1
-        :return: pyx.color object
-        """
-        try:
-            return eval("pyx.color.rgb." + input)
-        except: pass
-        try:
-            return eval("pyx.color.cmyk." + input)
-        except: pass
-        try:
-            return pyx.color.rgb(*input)
-        except: pass
-        try:
-            return pyx.color.gray(input)
-        except:
-            return pyx.color.gray(0.5)
 
     def _split_nodes(self, node_class_names):
         """
@@ -118,14 +89,14 @@ class HivePlot():
 
     def _draw_background(self):
         max_length = (self.axis_length * (1 + self.proportional_offset_from_intersection)) * self.edge_curvature
-        colour = self.convert_colour(self.background_colour)
+        colour = convert_colour(self.background_colour)
         self.canvas.fill(pyx.path.rect(-max_length, -max_length, 2 * max_length, 2 * max_length), [colour])
 
     def _draw_axes(self, axes):
-        axis_colour = self.convert_colour(self.axis_colour)
+        axis_colour = convert_colour(self.axis_colour)
         for axis in axes.values():
-            self.canvas.stroke(pyx.path.line(*HivePlot.linestring_to_coords(axis)),
-                     [pyx.style.linewidth(self.axis_thickness), axis_colour])
+            self.canvas.stroke(pyx.path.line(*linestring_to_coords(axis)),
+                               [pyx.style.linewidth(self.axis_thickness), axis_colour])
 
     def _draw_labels(self, axes):
         text_alignment_list = [
@@ -138,8 +109,8 @@ class HivePlot():
             line_end = axes[axis_name].coords[1]
             txt_str = axis_name
             self.canvas.text(line_end[0], line_end[1],
-                   txt_str,
-                   text_alignment[axis_name])
+                             txt_str,
+                             text_alignment[axis_name])
 
     def _draw_edges(self, edge_lines):
         for edge_dict in edge_lines:
@@ -166,7 +137,7 @@ class HivePlot():
         for coords, weight in node_position_weights.items():
             self.canvas.stroke(pyx.path.circle(coords[0], coords[1], self.node_size))
             self.canvas.fill(pyx.path.circle(coords[0], coords[1], self.node_size),
-                   [gradient.getcolor(weight)])
+                             [gradient.getcolor(weight)])
 
     def draw(self, save_path=None, show=False):
         """
@@ -225,22 +196,13 @@ class HivePlot():
             start_to_start = geom.LineString([axes[mid_id[0]].coords[0], axes[mid_id[1]].coords[0]])
             end_to_end = geom.LineString([axes[mid_id[0]].coords[1], axes[mid_id[1]].coords[1]])
 
-            mid_ax_lines[mid_id] = geom.LineString([self._place_point_on_line(start_to_start, 0.5), self._place_point_on_line(end_to_end, 0.5)])
+            mid_ax_lines[mid_id] = geom.LineString([place_point_on_line(start_to_start, 0.5), place_point_on_line(end_to_end, 0.5)])
 
         return mid_ax_lines
 
     def save_canvas(self, path):
         self.canvas.writePDFfile(path)
         return True
-
-    @staticmethod
-    def linestring_to_coords(linestring):
-        ret = []
-        for point in linestring.coords:
-            for coord in point:
-                ret.append(coord)
-
-        return tuple(ret)
 
     def _create_axes(self):
         """
@@ -260,10 +222,10 @@ class HivePlot():
             axes[classes[1]] = geom.LineString([(0, -offset), (0, - self.axis_length - offset)])
         elif num_classes == 3:
             axes[classes[0]] = geom.LineString([(0, offset), (0, self.axis_length + offset)])
-            ax2_start = HivePlot._get_projection((0, 0), 120, offset)
-            axes[classes[1]] = HivePlot._get_projecting_line(ax2_start, 120, self.axis_length)
-            ax3_start = HivePlot._get_projection((0, 0), 240, offset)
-            axes[classes[2]] = HivePlot._get_projecting_line(ax3_start, 240, self.axis_length)
+            ax2_start = get_projection((0, 0), 120, offset)
+            axes[classes[1]] = get_projecting_line(ax2_start, 120, self.axis_length)
+            ax3_start = get_projection((0, 0), 240, offset)
+            axes[classes[2]] = get_projecting_line(ax3_start, 240, self.axis_length)
 
         return axes
 
@@ -280,21 +242,9 @@ class HivePlot():
         for node_class in self.node_classes:
             axis = axes[node_class]
             for node in self.node_classes[node_class]:
-                node_positions[node] = self._place_point_on_line(axis, ordered_nodes[node_class][node])
+                node_positions[node] = place_point_on_line(axis, ordered_nodes[node_class][node])
 
         return node_positions
-
-    def _place_point_on_line(self, line, proportion):
-        """
-        Generate position of a point on a single line
-        :param line: A LineString on which the point is to placed
-        :param proportion: The proportion of the way along the line which the point should be placed
-        :return: A tuple (x, y) of coordinates on the line
-        """
-        start, end = np.array(line.coords[0]), np.array(line.coords[1])
-        vector = end - start
-        vector_from_start = vector * proportion
-        return tuple(start + vector_from_start)
 
     def _order_nodes(self):
         """
@@ -320,35 +270,6 @@ class HivePlot():
 
         return node_positions
 
-    @staticmethod
-    def _get_projection(startpoint, angle, distance):
-        """
-        :param startpoint: (x, y) tuple of starting coordinates
-        :param angle: Bearing, clockwise from 0 degrees, in which to project
-        :param distance: Length of projection
-        :return: (x, y) tuple of ending coordinates
-        """
-        angle = 90 - angle
-        if angle < -180:
-            angle += 360
-
-        angle_r = math.radians(angle)
-
-        start = complex(startpoint[0], startpoint[1])
-        movement = cmath.rect(distance, angle_r)
-        end = start + movement
-        return end.real, end.imag
-
-    @staticmethod
-    def _get_projecting_line(startpoint, angle, distance):
-        """
-        :param startpoint: (x, y) tuple of starting coordinates
-        :param angle: Bearing, clockwise from 0 degrees, in which to project
-        :param distance: Length of projection
-        :return: LineString of projection
-        """
-        return geom.LineString([startpoint, HivePlot._get_projection(startpoint, angle, distance)])
-
     def deepcopy(self):
         return copy.deepcopy(self)
 
@@ -358,7 +279,7 @@ class HivePlot():
         for edge in self.network.edges_iter(data=True):
             # prevent intra-axis edge
             if self.network.node[edge[0]][self.node_class_attribute] == self.network.node[edge[1]][
-                    self.node_class_attribute]:
+                self.node_class_attribute]:
                 continue
 
             undirected = set(edge[:2])
@@ -396,7 +317,7 @@ class HivePlot():
                 #sorted_edges[:, 1] = np.linspace(0, maximum, np.shape(sorted_edges)[0])
 
                 for edge, crossing_proportion in sorted_edges:
-                    crossing_points[edge] = self._place_point_on_line(mid_ax_lines[mid_ax_line], self.edge_curvature*crossing_proportion)
+                    crossing_points[edge] = place_point_on_line(mid_ax_lines[mid_ax_line], self.edge_curvature*crossing_proportion)
 
         gradient = eval("pyx.color.gradient." + self.edge_colour_gradient)
         retlist = []
@@ -406,7 +327,7 @@ class HivePlot():
                 "start": node_positions[start],
                 "end": node_positions[end],
                 "colour": gradient.getcolor(edges[edge]),
-            }
+                }
             if curved:
                 entry["crossing_point"] = crossing_points[edge]
             retlist.append(entry)
@@ -419,12 +340,30 @@ class HivePlot():
             if line.intersects(mid_ax_lines[mid_ax_line]):
                 return mid_ax_line, line.intersection(mid_ax_lines[mid_ax_line])
 
-    def _weight_by_colocation(self, node_positions):
+    @staticmethod
+    def _weight_by_colocation(node_positions):
         tally = Counter(list(node_positions.values()))
         tally_arr = np.array(list(tally.items()), dtype="object")
         tally_arr[:, 1] = tally_arr[:, 1]/np.max(tally_arr[:, 1])
         return dict(tally_arr)
 
 
-
-
+def convert_colour(input):
+    """
+    Convert user input into a pyx colour object.
+    :param input: string corresponding to pyx's RGB or CMYK named colours, tuple of (r,g,b) values, or greyscale value between 0 and 1
+    :return: pyx.color object
+    """
+    try:
+        return eval("pyx.color.rgb." + input)
+    except: pass
+    try:
+        return eval("pyx.color.cmyk." + input)
+    except: pass
+    try:
+        return pyx.color.rgb(*input)
+    except: pass
+    try:
+        return pyx.color.gray(input)
+    except:
+        return pyx.color.gray(0.5)
