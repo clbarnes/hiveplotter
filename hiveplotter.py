@@ -23,10 +23,7 @@ class HivePlot():
         """
         self.network = network
         self.node_class_attribute = node_class_attribute
-        print(node_class_values)
         self.node_classes = self._split_nodes(node_class_values)
-        print(list(self.node_classes))
-        print("_____________")
 
         # define default behaviour, which can be overridden with kwargs
         self.axis_length = 10
@@ -38,7 +35,8 @@ class HivePlot():
         # self.weight_edge_thickness = False
         self.edge_colour_data = "weight"  # should be a numerical attribute, or "random"
         self.background_colour = "White"
-        #self.text_colour = "White"
+        self.label_colour = "Green"
+        self.label_size = 10   # must be between 5 and 25
         self.axis_colour = "Gray"
         self.axis_thickness = 0.15
         self.normalise_link_colours = False
@@ -108,12 +106,20 @@ class HivePlot():
             [pyx.text.halign.boxright, pyx.text.valign.top]
         ]
         text_alignment = dict(zip(list(axes), text_alignment_list))
+
         for axis_name in axes:
             line_end = axes[axis_name].coords[1]
-            txt_str = axis_name
+            # txt_str = axis_name
+            txt_str = self._colour_text(self._size_text(axis_name, self.label_size))
             self.canvas.text(line_end[0], line_end[1],
                              txt_str,
                              text_alignment[axis_name])
+
+    def _size_text(self, text, size):
+        return r"{\fontsize{" + str(size) + r"}{" + str(round(size*1.2)) + r"}\selectfont " + text + r"}"
+
+    def _colour_text(self, text):
+        return r"\textcolor{COL}{" + text + "}"
 
     def _draw_edges(self, edge_lines):
         for edge_dict in edge_lines:
@@ -148,6 +154,9 @@ class HivePlot():
         :param save_path: path of PDF file to save graph into
         :return: True for successful completion
         """
+
+        self._setup_latex()
+
         self.canvas = pyx.canvas.canvas()
         axes = self._create_axes()
         node_positions = self._place_nodes(axes)
@@ -339,23 +348,54 @@ class HivePlot():
         tally_arr[:, 1] = tally_arr[:, 1]/np.max(tally_arr[:, 1])
         return dict(tally_arr)
 
+    def _setup_latex(self):
+        pyx.text.set(pyx.text.LatexRunner)
+        pyx.text.preamble(r"\usepackage{color}")
+        pyx.text.preamble(r"\usepackage[T1]{fontenc}")
+        pyx.text.preamble(r"\usepackage{lmodern}")
+        col = convert_colour(self.label_colour)
+        pyx.text.preamble(r"\definecolor{COL}{cmyk}{%g,%g,%g,%g}" % (col.c, col.m, col.y, col.k))
+
 
 def convert_colour(input):
     """
     Convert user input into a pyx colour object.
     :param input: string corresponding to pyx's RGB or CMYK named colours, tuple of (r,g,b) values, or greyscale value between 0 and 1
-    :return: pyx.color object
+    :return: pyx.color.cmyk object
     """
-    try:
-        return eval("pyx.color.rgb." + input)
-    except: pass
     try:
         return eval("pyx.color.cmyk." + input)
     except: pass
     try:
-        return pyx.color.rgb(*input)
+        return _rgb_obj_to_cmyk_obj(eval("pyx.color.rgb." + input))
+    except:
+        pass
+    try:
+        return _rgb_to_cmyk_obj(*input)
     except: pass
     try:
-        return pyx.color.gray(input)
+        return _greyscale_to_cmyk_obj(input)
     except:
-        return pyx.color.gray(0.5)
+        return _greyscale_to_cmyk_obj(0.5)
+
+
+def _rgb_obj_to_cmyk_obj(rgb_obj):
+    return _rgb_to_cmyk_obj(rgb_obj.r, rgb_obj.g, rgb_obj.b)
+
+
+def _rgb_to_cmyk_obj(r, g, b):
+    c = 1-r
+    m = 1-g
+    y = 1-b
+
+    min_cmy = min(c, m, y)
+    c = (c - min_cmy) / (1 - min_cmy)
+    m = (m - min_cmy) / (1 - min_cmy)
+    y = (y - min_cmy) / (1 - min_cmy)
+    k = min_cmy
+
+    return pyx.color.cmyk(c, m, y, k)
+
+
+def _greyscale_to_cmyk_obj(grey_val):
+    return pyx.color.cmyk(0, 0, 0, 1 - grey_val)
