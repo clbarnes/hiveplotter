@@ -24,26 +24,39 @@ class HivePlot():
         self.node_class_attribute = node_class_attribute
         self.node_classes = self._split_nodes(node_class_values)
 
-        # define default behaviour, which can be overridden with kwargs
+        ## define default behaviour, which can be overridden with kwargs
+
+        self.background_colour = "Black"
+
+        # axis parameters
         self.axis_length = 10
         self.proportional_offset_from_intersection = 0.2  # as a proportion of the longest axis
         self.split_axes = []
+        if self.split_axes:
+            raise NotImplementedError("Axis splitting is not yet implemented.")
         self.normalise_axis_length = False
-        self.normalise_node_distribution = False
+        self.axis_colour = "Gray"
+        self.axis_thickness = 0.15
+
+        #edge parameters
         self.edge_thickness_range = (0.005, 0.16)
         self.edge_colour_attribute = "weight"
         self.edge_colour_gradient = "Jet"
         self.edge_category_colours = None
         self.edge_curvature = 1.7
-        self.background_colour = "Black"
+        self.normalise_edge_colours = False
+
+        # axis label parameters
         self.label_colour = "White"
         self.label_size = 15
-        self.axis_colour = "Gray"
-        self.axis_thickness = 0.15
-        self.normalise_link_colours = False
+
+        # node parameters
+        self.normalise_node_distribution = False
         self.node_size = 0.08
-        self.canvas = None
         self.node_colour_gradient = "GreenRed"
+
+        # fields to be filled by the object
+        self.canvas = None
 
         self.__dict__.update(kwargs)
 
@@ -332,7 +345,7 @@ class HivePlot():
             for edge in edges:
                 edges[edge] /= maximum
 
-            if self.normalise_link_colours:
+            if self.normalise_edge_colours:
                 old_new_weights = dict(zip(sorted(edges.values()), range(len(edges))))
 
                 for edge in edges:

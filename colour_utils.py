@@ -28,7 +28,12 @@ def convert_colour(inp):
 
 
 def categories_to_float(categories):
-    return {category: i/(len(categories)-1) for i, category in enumerate(categories)}
+    """
+    Converts a set of categories into a set of floats for use with colour gradients
+    :param categories: An iterable of unique categories
+    :return: A dictionary whose keys are the original categories and whose values are unique, evenly spaced floats between 0 and 1.
+    """
+    return {category: i/(len(categories)-1) for i, category in enumerate(sorted(categories))}
 
 
 def _rgb_obj_to_cmyk_obj(rgb_obj):
