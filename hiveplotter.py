@@ -24,8 +24,9 @@ class HivePlot():
         self.node_class_attribute = node_class_attribute
         self.node_classes = self._split_nodes(node_class_values)
 
-        ## define default behaviour, which can be overridden with kwargs
+        # define default behaviour, which can be overridden with kwargs
 
+        # background parameters
         self.background_colour = "Black"
 
         # axis parameters
@@ -38,7 +39,7 @@ class HivePlot():
         self.axis_colour = "Gray"
         self.axis_thickness = 0.15
 
-        #edge parameters
+        # edge parameters
         self.edge_thickness_range = (0.005, 0.16)
         self.edge_colour_attribute = "weight"
         self.edge_colour_gradient = "Jet"
