@@ -9,16 +9,20 @@ import copy
 from collections import Counter
 from colour_utils import convert_colour, categories_to_float
 import random
+import warnings
 
 
 class HivePlot():
     def __init__(self, network, node_class_attribute="type", node_class_values=None, **kwargs):
         """
-        :param network: NetworkX representation of a network to be plotted
+        :param network: network to be plotted
+        :type network: nx.Graph
         :param node_class_attribute: The attribute of nodes on which to split them onto 1-3 axes (default: "type")
+        :type node_class_attribute: str
         :param node_class_values: Values of node_class_attribute which will be included in the plot (in clockwise order)
+        :type node_class_values: list
         :param kwargs: Dictionary of attributes which can override default behaviour of the plot
-        :return:
+        :type kwargs: dict
         """
         self.network = network
         self.node_class_attribute = node_class_attribute
@@ -27,6 +31,7 @@ class HivePlot():
         # define default behaviour, which can be overridden with kwargs
 
         # background parameters
+        self.background_proportion = 1.2
         self.background_colour = "Black"
 
         # axis parameters
@@ -58,6 +63,8 @@ class HivePlot():
 
         # fields to be filled by the object
         self.canvas = None
+        self._background_layer = None
+        self._foreground_layer = None
 
         self.__dict__.update(kwargs)
 
@@ -65,7 +72,9 @@ class HivePlot():
         """
         Split nodes based on the attribute specified in self.node_class_attribute
         :param node_class_names: Values of node_class_attribute which will be included in the plot (in clockwise order)
+        :type node_class_names: list
         :return: A dictionary whose keys are the node class attribute values, and values are lists of nodes belonging to that class
+        :rtype: dict
         """
         node_attribute_dict = nx.get_node_attributes(self.network, self.node_class_attribute)
 
@@ -93,6 +102,7 @@ class HivePlot():
     def _get_working_nodes(self):
         """
         :return: The set of all nodes to be included in the plot
+        :rtype: set
         """
         working_nodes = set()
 
@@ -102,14 +112,30 @@ class HivePlot():
         return working_nodes
 
     def _draw_background(self):
-        max_length = (self.axis_length * (1 + self.proportional_offset_from_intersection)) * self.edge_curvature
+        # max_length = self.axis_length * (self.background_proportion + self.proportional_offset_from_intersection)
+        min_x, min_y, max_x, max_y = self._get_bbox()
         colour = convert_colour(self.background_colour)
-        self.canvas.fill(pyx.path.rect(-max_length, -max_length, 2 * max_length, 2 * max_length), [colour])
+        self._background_layer.fill(pyx.path.rect(min_x, min_y, max_x-min_x, max_y-min_y), [colour])
+
+    def _get_bbox(self, extend=1.1):
+        """
+        :param extend: the proportion of the extent which should be added to the size of the bounding box
+        :type extend: float or int
+        :return: extents of bounding box
+        :rtype: tuple
+        """
+        bbox = self.canvas.bbox()
+        min_x = pyx.unit.tocm(bbox.left())
+        min_y = pyx.unit.tocm(bbox.bottom())
+        max_x = pyx.unit.tocm(bbox.right())
+        max_y = pyx.unit.tocm(bbox.top())
+
+        return min_x*extend, min_y*extend, max_x*extend, max_y*extend
 
     def _draw_axes(self, axes):
         axis_colour = convert_colour(self.axis_colour)
         for axis in axes.values():
-            self.canvas.stroke(pyx.path.line(*linestring_to_coords(axis)),
+            self._foreground_layer.stroke(pyx.path.line(*linestring_to_coords(axis)),
                                [pyx.style.linewidth(self.axis_thickness), axis_colour])
 
     def _draw_labels(self, axes):
@@ -124,9 +150,11 @@ class HivePlot():
             line_end = axes[axis_name].coords[1]
             # txt_str = axis_name
             txt_str = self._colour_text(self._size_text(axis_name, self.label_size))
-            self.canvas.text(line_end[0], line_end[1],
-                             txt_str,
-                             text_alignment[axis_name])
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                self._foreground_layer.text(line_end[0], line_end[1],
+                                 txt_str,
+                                 text_alignment[axis_name])
 
     def _size_text(self, text, size):
         return r"{\fontsize{" + str(size) + r"}{" + str(round(size*1.2)) + r"}\selectfont " + text + r"}"
@@ -152,7 +180,7 @@ class HivePlot():
             else:
                 edgepath = pyx.path.line(pyx.path.line(start[0], start[1], end[0], end[1]))
 
-            self.canvas.stroke(edgepath, [
+            self._foreground_layer.stroke(edgepath, [
                 pyx.style.linewidth(edge_dict["thickness"]),
                 colour
             ])
@@ -161,8 +189,8 @@ class HivePlot():
         gradient = eval("pyx.color.gradient." + self.node_colour_gradient)
         node_position_weights = self._weight_by_colocation(node_positions)
         for coords, weight in node_position_weights.items():
-            self.canvas.stroke(pyx.path.circle(coords[0], coords[1], self.node_size))
-            self.canvas.fill(pyx.path.circle(coords[0], coords[1], self.node_size),
+            self._foreground_layer.stroke(pyx.path.circle(coords[0], coords[1], self.node_size))
+            self._foreground_layer.fill(pyx.path.circle(coords[0], coords[1], self.node_size),
                              [gradient.getcolor(weight)])
 
     def draw(self, save_path=None):
@@ -175,6 +203,8 @@ class HivePlot():
         self._setup_latex()
 
         self.canvas = pyx.canvas.canvas()
+        self._background_layer = self.canvas.layer("background")
+        self._foreground_layer = self.canvas.layer("foreground", above="background")
         axes = self._create_axes()
         node_positions = self._place_nodes(axes)
 
@@ -186,11 +216,11 @@ class HivePlot():
         else:
             raise NotImplementedError("2-axis plots not yet implemented")
 
-        self._draw_background()
         self._draw_axes(axes)
         self._draw_labels(axes)
         self._draw_edges(edge_lines)
         self._draw_nodes(node_positions)
+        self._draw_background()
 
         if not save_path is None:
             self.save_canvas(save_path)
