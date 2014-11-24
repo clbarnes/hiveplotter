@@ -464,7 +464,7 @@ class HivePlot():
     def _weight_by_colocation(node_positions):
         tally = Counter(list(node_positions.values()))
         tally_arr = np.array(list(tally.items()), dtype="object")
-        tally_arr[:, 1] = tally_arr[:, 1] / np.sum(tally_arr[:, 1])
+        tally_arr[:, 1] = tally_arr[:, 1] / np.max(tally_arr[:, 1])
         return dict(tally_arr)
 
     def _setup_latex(self):
