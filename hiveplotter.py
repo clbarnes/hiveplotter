@@ -13,6 +13,10 @@ import warnings
 
 
 class HivePlot():
+    """
+    A class wrapping a networkx graph which can be used to generate highly customisable hive plots.
+    """
+
     def __init__(self, network, node_class_attribute="type", node_class_values=None, **kwargs):
         """
         :param network: network to be plotted
@@ -61,12 +65,19 @@ class HivePlot():
         self.node_size = 0.08
         self.node_colour_gradient = "GreenRed"
 
-        # fields to be filled by the object
-        self.canvas = None
-        self._background_layer = None
-        self._foreground_layer = None
+        # legend parameters
+        self.legend_position = "top_right"
 
         self.__dict__.update(kwargs)
+
+        # fields to be filled by the object
+        self.canvas = None
+        self.legend_categories = None
+        self._background_layer = None
+        self._foreground_layer = None
+        self._legend_layer = None
+        self.colour_definitions = self._convert_colours()
+
 
     def _split_nodes(self, node_class_names):
         """
@@ -112,16 +123,22 @@ class HivePlot():
         return working_nodes
 
     def _draw_background(self):
+        """
+        Draw the background of the plot slightly larger than everything in the foreground.
+        :return: None
+        :rtype: None
+        """
         # max_length = self.axis_length * (self.background_proportion + self.proportional_offset_from_intersection)
         min_x, min_y, max_x, max_y = self._get_bbox()
         colour = convert_colour(self.background_colour)
-        self._background_layer.fill(pyx.path.rect(min_x, min_y, max_x-min_x, max_y-min_y), [colour])
+        self._background_layer.fill(pyx.path.rect(min_x, min_y, max_x - min_x, max_y - min_y), [colour])
 
     def _get_bbox(self, extend=1.1):
         """
+        Get the extents of the canvas.
         :param extend: the proportion of the extent which should be added to the size of the bounding box
         :type extend: float or int
-        :return: extents of bounding box
+        :return: extents of bounding box- (minX, minY, maxX, maxY)
         :rtype: tuple
         """
         bbox = self.canvas.bbox()
@@ -130,13 +147,19 @@ class HivePlot():
         max_x = pyx.unit.tocm(bbox.right())
         max_y = pyx.unit.tocm(bbox.top())
 
-        return min_x*extend, min_y*extend, max_x*extend, max_y*extend
+        return min_x * extend, min_y * extend, max_x * extend, max_y * extend
 
     def _draw_axes(self, axes):
+        """
+        :param axes: Dictionary of axis names and their geometries
+        :type axes: dict
+        :return: None
+        :rtype: None
+        """
         axis_colour = convert_colour(self.axis_colour)
         for axis in axes.values():
             self._foreground_layer.stroke(pyx.path.line(*linestring_to_coords(axis)),
-                               [pyx.style.linewidth(self.axis_thickness), axis_colour])
+                                          [pyx.style.linewidth(self.axis_thickness), axis_colour])
 
     def _draw_labels(self, axes):
         text_alignment_list = [
@@ -149,18 +172,17 @@ class HivePlot():
         for axis_name in axes:
             line_end = axes[axis_name].coords[1]
             # txt_str = axis_name
-            txt_str = self._colour_text(self._size_text(axis_name, self.label_size))
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                self._foreground_layer.text(line_end[0], line_end[1],
-                                 txt_str,
-                                 text_alignment[axis_name])
+            txt_str = self._colour_text(self._size_text(axis_name, self.label_size), self.label_colour)
+
+            self._foreground_layer.text(line_end[0], line_end[1],
+                                        txt_str,
+                                        text_alignment[axis_name])
 
     def _size_text(self, text, size):
-        return r"{\fontsize{" + str(size) + r"}{" + str(round(size*1.2)) + r"}\selectfont " + text + r"}"
+        return r"{\fontsize{" + str(size) + r"}{" + str(round(size * 1.2)) + r"}\selectfont " + text + r"}"
 
-    def _colour_text(self, text):
-        return r"\textcolor{COL}{" + text + "}"
+    def _colour_text(self, text, colour):
+        return r"\textcolor{" + str(colour) + "}{" + text + "}"
 
     def _draw_edges(self, edge_lines):
 
@@ -191,13 +213,15 @@ class HivePlot():
         for coords, weight in node_position_weights.items():
             self._foreground_layer.stroke(pyx.path.circle(coords[0], coords[1], self.node_size))
             self._foreground_layer.fill(pyx.path.circle(coords[0], coords[1], self.node_size),
-                             [gradient.getcolor(weight)])
+                                        [gradient.getcolor(weight)])
 
     def draw(self, save_path=None):
         """
         Draw the graph using the current settings
         :param save_path: path of PDF file to save graph into
+        :type save_path: str
         :return: True for successful completion
+        :rtype: bool
         """
 
         self._setup_latex()
@@ -205,6 +229,7 @@ class HivePlot():
         self.canvas = pyx.canvas.canvas()
         self._background_layer = self.canvas.layer("background")
         self._foreground_layer = self.canvas.layer("foreground", above="background")
+        self._legend_layer = self.canvas.layer("legend", above="foreground")
         axes = self._create_axes()
         node_positions = self._place_nodes(axes)
 
@@ -220,6 +245,7 @@ class HivePlot():
         self._draw_labels(axes)
         self._draw_edges(edge_lines)
         self._draw_nodes(node_positions)
+        self._draw_legend(axes)
         self._draw_background()
 
         if not save_path is None:
@@ -244,18 +270,28 @@ class HivePlot():
             start_to_start = geom.LineString([axes[mid_id[0]].coords[0], axes[mid_id[1]].coords[0]])
             end_to_end = geom.LineString([axes[mid_id[0]].coords[1], axes[mid_id[1]].coords[1]])
 
-            mid_ax_lines[mid_id] = geom.LineString([place_point_on_line(start_to_start, 0.5), place_point_on_line(end_to_end, 0.5)])
+            mid_ax_lines[mid_id] = geom.LineString(
+                [place_point_on_line(start_to_start, 0.5), place_point_on_line(end_to_end, 0.5)])
 
         return mid_ax_lines
 
     def save_canvas(self, path):
-        self.canvas.writePDFfile(path)
+        """
+        :param path: Save path
+        :type path: str
+        :return: True if complete
+        :rtype: bool
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.canvas.writePDFfile(path)
         return True
 
     def _create_axes(self):
         """
         Generate axes on which to plot nodes
         :return: A dictionary whose keys are the node class attribute values, and values are LineStrings of the axis those nodes will be plotted on
+        :rtype: bool
         """
         classes = list(self.node_classes)
         num_classes = len(classes)
@@ -343,12 +379,12 @@ class HivePlot():
 
             # prevent intra-axis edge
             if self.network.node[edge[0]][self.node_class_attribute] == self.network.node[edge[1]][
-                    self.node_class_attribute]:
+                self.node_class_attribute]:
                 continue
 
             key = tuple(sorted(edge[:2]))
 
-            if key in edges:    # if edge already exists in data set
+            if key in edges:  # if edge already exists in data set
                 if self.edge_colour_attribute is not "random" and is_colour_attr_numerical:
                     edges[key] += float(edge[2][self.edge_colour_attribute])
             elif set(key).issubset(working_nodes):
@@ -366,8 +402,9 @@ class HivePlot():
         edge_thickness_dict = dict()
         for edge in self.network.edges_iter(data=True):
             key = tuple(sorted(edge[:2]))
-            if "weight" in edge[2]:
-                edge_thickness_dict[key] = ((edge[2]["weight"] - min_weight)/weight_range * thickness_range) + min_thickness
+            if "weight" in edge[2] and weight_range:
+                edge_thickness_dict[key] = ((edge[2][
+                                                 "weight"] - min_weight) / weight_range * thickness_range) + min_thickness
             else:
                 edge_thickness_dict[key] = min_thickness
 
@@ -387,22 +424,24 @@ class HivePlot():
             intersection_points = {mid_ax_line: [] for mid_ax_line in mid_ax_lines}
             for edge in edges:
                 mid_ax_line, intersection = self._get_name_and_point_of_intersection(edge, node_positions, mid_ax_lines)
-                intersection_proportion = np.linalg.norm(np.array(intersection))/mid_ax_lines[mid_ax_line].length
+                intersection_proportion = np.linalg.norm(np.array(intersection)) / mid_ax_lines[mid_ax_line].length
                 intersection_points[mid_ax_line].append((edge, intersection_proportion))
 
             for mid_ax_line in mid_ax_lines:
                 sorted_edges = np.array(sorted(intersection_points[mid_ax_line], key=lambda point: point[1]))
-                #maximum = sorted_edges[-1, 1]
+                # maximum = sorted_edges[-1, 1]
                 #sorted_edges[:, 1] = np.linspace(0, maximum, np.shape(sorted_edges)[0])
 
                 for edge, crossing_proportion in sorted_edges:
-                    crossing_points[edge] = place_point_on_line(mid_ax_lines[mid_ax_line], self.edge_curvature*crossing_proportion)
+                    crossing_points[edge] = place_point_on_line(mid_ax_lines[mid_ax_line],
+                                                                self.edge_curvature * crossing_proportion)
 
         gradient = eval("pyx.color.gradient." + self.edge_colour_gradient)
         retlist = []
         for edge in edges:
             start, end = edge
-            colour = gradient.getcolor(edges[edge]) if isinstance(edges[edge], (float, int)) else convert_colour(edges[edge])
+            colour = gradient.getcolor(edges[edge]) if isinstance(edges[edge], (float, int)) else convert_colour(
+                edges[edge])
             entry = {
                 "start": node_positions[start],
                 "end": node_positions[end],
@@ -425,7 +464,7 @@ class HivePlot():
     def _weight_by_colocation(node_positions):
         tally = Counter(list(node_positions.values()))
         tally_arr = np.array(list(tally.items()), dtype="object")
-        tally_arr[:, 1] = tally_arr[:, 1]/np.max(tally_arr[:, 1])
+        tally_arr[:, 1] = tally_arr[:, 1] / np.sum(tally_arr[:, 1])
         return dict(tally_arr)
 
     def _setup_latex(self):
@@ -433,8 +472,40 @@ class HivePlot():
         pyx.text.preamble(r"\usepackage{color}")
         pyx.text.preamble(r"\usepackage[T1]{fontenc}")
         pyx.text.preamble(r"\usepackage{lmodern}")
-        col = convert_colour(self.label_colour)
-        pyx.text.preamble(r"\definecolor{COL}{cmyk}{%g,%g,%g,%g}" % (col.c, col.m, col.y, col.k))
+        self._define_colours(self.colour_definitions)
+
+    def _define_colours(self, colour_dict):
+        for colour_name, colour_obj in colour_dict.items():
+            pyx.text.preamble(r"\definecolor{%s}{cmyk}{%g,%g,%g,%g}" % (colour_name,
+                                                                        colour_obj.c, colour_obj.m,
+                                                                        colour_obj.y, colour_obj.k))
 
     def _get_edges_colour_attr(self):
         return set(nx.get_edge_attributes(self.network, self.edge_colour_attribute).values())
+
+    def _draw_legend(self, axes):
+        if not self.edge_category_colours:
+            return
+
+        legend_items = []
+        for category in self.edge_category_colours:
+            legend_items.append(self._size_text(
+                "%s %s" % (self._colour_text("--- ", self.edge_category_colours[category]),
+                           self._colour_text(category, self.label_colour)), self.label_size)
+            )
+
+        legend_str =  r"\linebreak".join(legend_items)
+        max_x = max([axes[key].coords[1][0] for key in axes])
+
+        self._legend_layer.text(max_x, 0, legend_str, [pyx.text.parbox(4), pyx.text.halign.left, pyx.text.valign.middle])
+
+    def _convert_colours(self):
+        d = {self.label_colour: convert_colour(self.label_colour),
+             self.background_colour: convert_colour(self.background_colour),
+             self.axis_colour: convert_colour(self.axis_colour)}
+
+        if self.edge_category_colours:
+            for value in self.edge_category_colours.values():
+                d[value] = convert_colour(value)
+
+        return d
