@@ -34,6 +34,9 @@ class HivePlot():
 
         # define default behaviour, which can be overridden with kwargs
 
+        # setup parameters
+        self.parent_hiveplot = None
+
         # background parameters
         self.background_proportion = 1.2
         self.background_colour = "Black"
@@ -59,14 +62,12 @@ class HivePlot():
         # axis label parameters
         self.label_colour = "White"
         self.label_size = 15
+        self.label_spacing = 0.05
 
         # node parameters
         self.normalise_node_distribution = False
         self.node_size = 0.08
         self.node_colour_gradient = "GreenRed"
-
-        # legend parameters
-        self.legend_position = "top_right"
 
         self.__dict__.update(kwargs)
 
@@ -76,8 +77,8 @@ class HivePlot():
         self._background_layer = None
         self._foreground_layer = None
         self._legend_layer = None
+        self._node_positions = self.parent_hiveplot._node_positions if self.parent_hiveplot else None
         self.colour_definitions = self._convert_colours()
-
 
     def _split_nodes(self, node_class_names):
         """
@@ -170,11 +171,11 @@ class HivePlot():
         text_alignment = dict(zip(list(axes), text_alignment_list))
 
         for axis_name in axes:
-            line_end = axes[axis_name].coords[1]
+            label_position = place_point_on_line(axes[axis_name], 1 + self.label_spacing)
             # txt_str = axis_name
             txt_str = self._colour_text(self._size_text(axis_name, self.label_size), self.label_colour)
 
-            self._foreground_layer.text(line_end[0], line_end[1],
+            self._foreground_layer.text(label_position[0], label_position[1],
                                         txt_str,
                                         text_alignment[axis_name])
 
@@ -231,20 +232,21 @@ class HivePlot():
         self._foreground_layer = self.canvas.layer("foreground", above="background")
         self._legend_layer = self.canvas.layer("legend", above="foreground")
         axes = self._create_axes()
-        node_positions = self._place_nodes(axes)
+        if not self._node_positions:
+            self._node_positions = self._place_nodes(axes)
 
         if len(axes) == 3:
             mid_ax_lines = self._create_mid_ax_lines(axes)
 
             # edge_lines = self._create_straight_edge_info(node_positions, curved=False)
-            edge_lines = self._create_edge_info(node_positions, curved=True, mid_ax_lines=mid_ax_lines)
+            edge_lines = self._create_edge_info(self._node_positions, curved=True, mid_ax_lines=mid_ax_lines)
         else:
             raise NotImplementedError("2-axis plots not yet implemented")
 
         self._draw_axes(axes)
         self._draw_labels(axes)
         self._draw_edges(edge_lines)
-        self._draw_nodes(node_positions)
+        self._draw_nodes(self._node_positions)
         self._draw_legend(axes)
         self._draw_background()
 
