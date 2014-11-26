@@ -17,6 +17,8 @@ class HivePlot():
     A class wrapping a networkx graph which can be used to generate highly customisable hive plots.
     """
 
+
+
     def __init__(self, network, node_class_attribute="type", node_class_values=None, **kwargs):
         """
         :param network: network to be plotted
@@ -51,14 +53,6 @@ class HivePlot():
         self.axis_colour = "Gray"
         self.axis_thickness = 0.15
 
-        # edge parameters
-        self.edge_thickness_range = (0.005, 0.16)
-        self.edge_colour_attribute = "weight"
-        self.edge_colour_gradient = "Jet"
-        self.edge_category_colours = None
-        self.edge_curvature = 1.7
-        self.normalise_edge_colours = False
-
         # axis label parameters
         self.label_colour = "White"
         self.label_size = 15
@@ -66,8 +60,17 @@ class HivePlot():
 
         # node parameters
         self.normalise_node_distribution = False
-        self.node_size = 0.08
+        self.node_superimpose_representation = "colour"   # or "size"
+        self.node_size_range = (0.08, 0.5)
         self.node_colour_gradient = "GreenRed"
+
+        # edge parameters
+        self.edge_thickness_range = (0.005, 0.16)
+        self.edge_colour_attribute = "weight"
+        self.edge_colour_gradient = "Jet"
+        self.edge_category_colours = None
+        self.edge_curvature = 1.7
+        self.normalise_edge_colours = False
 
         self.__dict__.update(kwargs)
 
@@ -210,10 +213,18 @@ class HivePlot():
 
     def _draw_nodes(self, node_positions):
         gradient = eval("pyx.color.gradient." + self.node_colour_gradient)
-        node_position_weights = self._weight_by_colocation(node_positions)
-        for coords, weight in node_position_weights.items():
-            self._foreground_layer.stroke(pyx.path.circle(coords[0], coords[1], self.node_size))
-            self._foreground_layer.fill(pyx.path.circle(coords[0], coords[1], self.node_size),
+        node_position_weights = list(self._weight_by_colocation(node_positions).items())
+        sorted_weights = sorted(node_position_weights, key=lambda x: x[1],
+                                reverse=self.node_superimpose_representation != "colour")
+        if self.node_superimpose_representation is "colour":
+            node_size = min(self.node_size_range)
+        else:
+            node_size = None
+        for coords, weight in sorted_weights:
+            self._foreground_layer.stroke(pyx.path.circle(coords[0], coords[1],
+                                        node_size if node_size else map_to_interval(self.node_size_range, weight)))
+            self._foreground_layer.fill(pyx.path.circle(coords[0], coords[1],
+                                        node_size if node_size else map_to_interval(self.node_size_range, weight)),
                                         [gradient.getcolor(weight)])
 
     def draw(self, save_path=None):
@@ -339,7 +350,7 @@ class HivePlot():
         """
         working_nodes = self._get_working_nodes()
         max_degree = max(nx.degree(self.network, nbunch=working_nodes).values())
-        node_positions = OrderedDict({node_class: dict() for node_class in self.node_classes})
+        node_positions = OrderedDict([(node_class, dict()) for node_class in self.node_classes])
         for node_class in self.node_classes:
             degrees = nx.degree(self.network, nbunch=self.node_classes[node_class]).items()
             sorted_degrees = sorted(degrees, key=lambda degree: degree[1])
@@ -466,7 +477,7 @@ class HivePlot():
     def _weight_by_colocation(node_positions):
         tally = Counter(list(node_positions.values()))
         tally_arr = np.array(list(tally.items()), dtype="object")
-        tally_arr[:, 1] = tally_arr[:, 1] / np.max(tally_arr[:, 1])
+        tally_arr[:, 1] = (tally_arr[:, 1] - 1) / (np.max(tally_arr[:, 1]) - 1)
         return dict(tally_arr)
 
     def _setup_latex(self):
@@ -511,3 +522,10 @@ class HivePlot():
                 d[value] = convert_colour(value)
 
         return d
+
+
+def map_to_interval(num_range, proportion):
+    mini = min(num_range)
+    rng = max(num_range) - mini
+
+    return mini + proportion*rng
