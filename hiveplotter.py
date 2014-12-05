@@ -17,8 +17,6 @@ class HivePlot():
     A class wrapping a networkx graph which can be used to generate highly customisable hive plots.
     """
 
-
-
     def __init__(self, network, node_class_attribute="type", node_class_values=None, **kwargs):
         """
         :param network: network to be plotted
@@ -61,7 +59,7 @@ class HivePlot():
         # node parameters
         self.normalise_node_distribution = False
         self.node_superimpose_representation = "colour"   # or "size"
-        self.node_size_range = (0.08, 0.5)
+        self.node_size_range = (0.08, 0.3)
         self.node_colour_gradient = "GreenRed"
 
         # edge parameters
@@ -392,7 +390,7 @@ class HivePlot():
 
             # prevent intra-axis edge
             if self.network.node[edge[0]][self.node_class_attribute] == self.network.node[edge[1]][
-                self.node_class_attribute]:
+                    self.node_class_attribute]:
                 continue
 
             key = tuple(sorted(edge[:2]))
