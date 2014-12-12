@@ -1,15 +1,14 @@
 import pyx
-from pyx.metapost.path import beginknot, endknot, smoothknot, tensioncurve
 import networkx as nx
 import numpy as np
 from collections import OrderedDict
-from shapely import geometry as geom
-from geom_utils import linestring_to_coords, get_projecting_line, get_projection, place_point_on_line
+from geom_utils import get_projection, place_point_on_line, mid_line
 import copy
 from collections import Counter
-from colour_utils import convert_colour, categories_to_float
-import random
+from colour_utils import convert_colour
+import random as rand
 import warnings
+from component_classes import Axis, Edge
 
 
 class HivePlot():
@@ -28,6 +27,7 @@ class HivePlot():
         :param kwargs: Dictionary of attributes which can override default behaviour of the plot
         :type kwargs: dict
         """
+        self.default_colour = "White"
         self.network = network
         self.node_class_attribute = node_class_attribute
         self.node_classes = self._split_nodes(node_class_values)
@@ -50,6 +50,7 @@ class HivePlot():
         self.normalise_axis_length = False
         self.axis_colour = "Gray"
         self.axis_thickness = 0.15
+        self.order_nodes_by = "degree"
 
         # axis label parameters
         self.label_colour = "White"
@@ -78,8 +79,8 @@ class HivePlot():
         self._background_layer = None
         self._foreground_layer = None
         self._legend_layer = None
-        self._node_positions = self.parent_hiveplot._node_positions if self.parent_hiveplot else None
         self.colour_definitions = self._convert_colours()
+        self._axes = None
 
     def _split_nodes(self, node_class_names):
         """
@@ -130,7 +131,6 @@ class HivePlot():
         :return: None
         :rtype: None
         """
-        # max_length = self.axis_length * (self.background_proportion + self.proportional_offset_from_intersection)
         min_x, min_y, max_x, max_y = self._get_bbox()
         colour = convert_colour(self.background_colour)
         self._background_layer.fill(pyx.path.rect(min_x, min_y, max_x - min_x, max_y - min_y), [colour])
@@ -151,29 +151,26 @@ class HivePlot():
 
         return min_x * extend, min_y * extend, max_x * extend, max_y * extend
 
-    def _draw_axes(self, axes):
+    def _draw_axes(self):
         """
         :param axes: Dictionary of axis names and their geometries
         :type axes: dict
         :return: None
         :rtype: None
         """
-        axis_colour = convert_colour(self.axis_colour)
-        for axis in axes.values():
-            self._foreground_layer.stroke(pyx.path.line(*linestring_to_coords(axis)),
-                                          [pyx.style.linewidth(self.axis_thickness), axis_colour])
+        for axis in self._axes.values():
+            axis.draw(self._foreground_layer)
 
-    def _draw_labels(self, axes):
+    def _draw_labels(self):
         text_alignment_list = [
             [pyx.text.halign.boxcenter, pyx.text.valign.bottom],
             [pyx.text.halign.boxleft, pyx.text.valign.top],
             [pyx.text.halign.boxright, pyx.text.valign.top]
         ]
-        text_alignment = dict(zip(list(axes), text_alignment_list))
+        text_alignment = dict(zip(list(self._axes), text_alignment_list))
 
-        for axis_name in axes:
-            label_position = place_point_on_line(axes[axis_name], 1 + self.label_spacing)
-            # txt_str = axis_name
+        for axis_name in self._axes:
+            label_position = place_point_on_line(self._axes[axis_name], 1 + self.label_spacing)
             txt_str = self._colour_text(self._size_text(axis_name, self.label_size), self.label_colour)
 
             self._foreground_layer.text(label_position[0], label_position[1],
@@ -186,31 +183,15 @@ class HivePlot():
     def _colour_text(self, text, colour):
         return r"\textcolor{" + str(colour) + "}{" + text + "}"
 
-    def _draw_edges(self, edge_lines):
+    def _draw_edges(self, edges):
+        for edge in edges:
+            edge.draw(self._foreground_layer)
 
-        for edge_dict in edge_lines:
-            start = edge_dict["start"]
-            end = edge_dict["end"]
-            colour = edge_dict["colour"]
-
-            if "crossing_point" in edge_dict:
-                midpoint = edge_dict["crossing_point"]
-
-                edgepath = pyx.metapost.path.path([
-                    beginknot(*start), tensioncurve(),
-                    smoothknot(*midpoint), tensioncurve(),
-                    endknot(*end)
-                ])
-            else:
-                edgepath = pyx.path.line(pyx.path.line(start[0], start[1], end[0], end[1]))
-
-            self._foreground_layer.stroke(edgepath, [
-                pyx.style.linewidth(edge_dict["thickness"]),
-                colour
-            ])
-
-    def _draw_nodes(self, node_positions):
+    def _draw_nodes(self):
         gradient = eval("pyx.color.gradient." + self.node_colour_gradient)
+        node_positions = dict()
+        for axis in self._axes.values():
+            node_positions.update(axis.nodes)
         node_position_weights = list(self._weight_by_colocation(node_positions).items())
         sorted_weights = sorted(node_position_weights, key=lambda x: x[1],
                                 reverse=self.node_superimpose_representation != "colour")
@@ -240,51 +221,25 @@ class HivePlot():
         self._background_layer = self.canvas.layer("background")
         self._foreground_layer = self.canvas.layer("foreground", above="background")
         self._legend_layer = self.canvas.layer("legend", above="foreground")
-        axes = self._create_axes()
-        if not self._node_positions:
-            self._node_positions = self._place_nodes(axes)
+        self._axes = self._create_axes()
+        self._place_nodes()
 
-        if len(axes) == 3:
-            mid_ax_lines = self._create_mid_ax_lines(axes)
-
-            # edge_lines = self._create_straight_edge_info(node_positions, curved=False)
-            edge_lines = self._create_edge_info(self._node_positions, curved=True, mid_ax_lines=mid_ax_lines)
+        if len(self._axes) == 3:
+            edge_lines = self._create_edge_info()
         else:
             raise NotImplementedError("2-axis plots not yet implemented")
 
-        self._draw_axes(axes)
-        self._draw_labels(axes)
+        self._draw_axes()
+        self._draw_labels()
         self._draw_edges(edge_lines)
-        self._draw_nodes(self._node_positions)
-        self._draw_legend(axes)
+        self._draw_nodes()
+        self._draw_legend()
         self._draw_background()
 
-        if not save_path is None:
+        if save_path is not None:
             self.save_canvas(save_path)
 
         return True
-
-    def _create_mid_ax_lines(self, axes):
-        """
-        For every pair of axes, create a line segment which bisects the angle between them and extends from where a line connecting their base would intersect with the bisecting line, and where a line connecting their tips would intersect with the bisecting line.
-        :param axes: A dictionary whose keys are the names of the axes in the plot, and values are the LineString objects describing those axes
-        :return: A dictionary whose keys are tuples of the names of the two axes the line is between, and the values are LineString objects describing that line
-        """
-        ax_names = list(axes.keys())
-        mid_ids = []
-        for i, ax_name in enumerate(ax_names[:-1]):
-            mid_ids.append(tuple(sorted([ax_name, ax_names[i + 1]])))
-        mid_ids.append(tuple(sorted([ax_names[-1], ax_names[0]])))
-
-        mid_ax_lines = dict()
-        for mid_id in mid_ids:
-            start_to_start = geom.LineString([axes[mid_id[0]].coords[0], axes[mid_id[1]].coords[0]])
-            end_to_end = geom.LineString([axes[mid_id[0]].coords[1], axes[mid_id[1]].coords[1]])
-
-            mid_ax_lines[mid_id] = geom.LineString(
-                [place_point_on_line(start_to_start, 0.5), place_point_on_line(end_to_end, 0.5)])
-
-        return mid_ax_lines
 
     def save_canvas(self, path):
         """
@@ -300,176 +255,133 @@ class HivePlot():
 
     def _create_axes(self):
         """
-        Generate axes on which to plot nodes
-        :return: A dictionary whose keys are the node class attribute values, and values are LineStrings of the axis those nodes will be plotted on
-        :rtype: bool
+        Generate axes on which to plot nodes. Copies parent hiveplot's axes if they exist.
+        :return: A dictionary whose keys are the node class attribute values, and values are Axis objects
+        :rtype: dict
         """
-        classes = list(self.node_classes)
-        num_classes = len(classes)
+
+        if len(self.node_classes) != 3:
+            raise NotImplementedError("Plots with number of axes other than 3 are not implemented yet (Issue #3)")
+
+        if self.parent_hiveplot:
+            return self.parent_hiveplot._axes
+
         axes = OrderedDict()
 
-        offset = self.proportional_offset_from_intersection * self.axis_length
-
-        if num_classes == 1:
-            axes[classes[0]] = geom.LineString([(0, 0), (0, self.axis_length)])
-        elif num_classes == 2:
-            axes[classes[0]] = geom.LineString([(0, offset), (0, self.axis_length + offset)])
-            axes[classes[1]] = geom.LineString([(0, -offset), (0, - self.axis_length - offset)])
-        elif num_classes == 3:
-            axes[classes[0]] = geom.LineString([(0, offset), (0, self.axis_length + offset)])
-            ax2_start = get_projection((0, 0), 120, offset)
-            axes[classes[1]] = get_projecting_line(ax2_start, 120, self.axis_length)
-            ax3_start = get_projection((0, 0), 240, offset)
-            axes[classes[2]] = get_projecting_line(ax3_start, 240, self.axis_length)
+        angle = 0
+        angle_spacing = 360/len(self.node_classes)
+        for node_class in self.node_classes:
+            new_axis = self._create_axis(angle)
+            new_axis.set_visual_properties(convert_colour(self.axis_colour), self.axis_thickness)
+            axes[node_class] = new_axis
+            angle += angle_spacing
 
         return axes
 
-    def _place_nodes(self, axes):
+    def _create_axis(self, angle):
+        ax_start = get_projection((0, 0), angle, self.proportional_offset_from_intersection * self.axis_length)
+        ax_stop = get_projection(ax_start, angle, self.axis_length)
+        return Axis(ax_start, ax_stop)
+
+    def _place_nodes(self):
         """
-        Generate positions of nodes to be plotted
-        :param axes: A dictionary whose keys are the node class attribute values, and values are LineStrings of the axis those nodes will be plotted on
-        :return: A dictionary whose keys are the nodes to be plotted and values are coordinates of that node on the plot
+        Places nodes on Axis objects. Does nothing if axes already have nodes.
+        :param axes: A dictionary whose keys are the node class attribute values, and values are component_classes.Axis objects of the axis those nodes will be plotted on
+        :type axes: dict
         """
-        node_positions = dict()
 
         ordered_nodes = self._order_nodes()
 
         for node_class in self.node_classes:
-            axis = axes[node_class]
-            for node in self.node_classes[node_class]:
-                node_positions[node] = place_point_on_line(axis, ordered_nodes[node_class][node])
-
-        return node_positions
+            if len(self._axes[node_class].nodes) is 0:
+                self._axes[node_class].add_nodes(
+                    {key: value for key, value in ordered_nodes.items() if key in self.node_classes[node_class]}
+                )
 
     def _order_nodes(self):
         """
         Order nodes by their degree.
-        :return: A dictionary whose keys are the node class attribute values, and values are a dictionaries whose keys are nodes belonging to that class and values are a proportion along the axis which that node should be placed
+        :return: A dictionary whose keys are nodes, and values are proportions up their respective axes at which the nodes should be placed
         """
         working_nodes = self._get_working_nodes()
-        max_degree = max(nx.degree(self.network, nbunch=working_nodes).values())
-        node_positions = OrderedDict([(node_class, dict()) for node_class in self.node_classes])
-        for node_class in self.node_classes:
-            degrees = nx.degree(self.network, nbunch=self.node_classes[node_class]).items()
-            sorted_degrees = sorted(degrees, key=lambda degree: degree[1])
-            degrees_arr = np.array(sorted_degrees, dtype="object")
-            if not self.normalise_axis_length:
-                degrees_arr[:, 1] = degrees_arr[:, 1] / max_degree
-            else:
-                degrees_arr[:, 1] = degrees_arr[:, 1] / np.max(degrees_arr[:, 1])
+        if self.order_nodes_by is "degree":
+            node_attrs = nx.degree(self.network, nbunch=working_nodes)
+        else:
+            node_attrs = {node[0]: node[1][self.order_nodes_by] for node in self.network.nodes(data=True)}
 
-            if self.normalise_node_distribution:
-                degrees_arr[:, 1] = np.linspace(0, np.max(degrees_arr[:, 1]), num=len(degrees_arr[:, 1]))
-
-            node_positions[node_class].update({deg[0]: deg[1] for deg in degrees_arr})
-
-        return node_positions
+        if self.normalise_axis_length:
+            ret_dict = dict()
+            for nodes in self.node_classes:
+                ret_dict.update(fit_attr_to_interval(
+                    {key: value for key, value in node_attrs.items() if key in self.node_classes[nodes]},
+                    distribute_evenly=self.normalise_node_distribution))
+            return ret_dict
+        else:
+            return fit_attr_to_interval(node_attrs, distribute_evenly=self.normalise_node_distribution)
 
     def deepcopy(self):
         return copy.deepcopy(self)
 
-    def _create_edge_info(self, node_positions, curved=False, mid_ax_lines=None):
+    def _get_edge_colour_thickness(self):
         working_nodes = self._get_working_nodes()
-        edges = dict()
-        is_colour_attr_numerical = False if self.edge_category_colours or self.edge_colour_attribute is "random" else None
-        edge_weights = set()
-        for edge in self.network.edges_iter(data=True):
-            if "weight" in edge[2]:
-                edge_weights.add(edge[2]["weight"])
-            else:
-                edge_weights.add(1)
-
-            if is_colour_attr_numerical is None:
-                try:
-                    float(edge[2][self.edge_colour_attribute])
-                    is_colour_attr_numerical = True
-                except ValueError:
-                    is_colour_attr_numerical = False
-                    if self.edge_category_colours is None:
-                        self.edge_category_colours = categories_to_float(self._get_edges_colour_attr())
-
-            # prevent intra-axis edge
-            if self.network.node[edge[0]][self.node_class_attribute] == self.network.node[edge[1]][
-                    self.node_class_attribute]:
-                continue
-
-            key = tuple(sorted(edge[:2]))
-
-            if key in edges:  # if edge already exists in data set
-                if self.edge_colour_attribute is not "random" and is_colour_attr_numerical:
-                    edges[key] += float(edge[2][self.edge_colour_attribute])
-            elif set(key).issubset(working_nodes):
-                if is_colour_attr_numerical:
-                    edges[key] = float(edge[2][self.edge_colour_attribute])
-                elif self.edge_colour_attribute is "random":
-                    edges[key] = random.random()
-                else:
-                    edges[key] = self.edge_category_colours[edge[2][self.edge_colour_attribute]]
-
-        min_weight = min(edge_weights)
-        weight_range = max(edge_weights) - min_weight
-        min_thickness = min(self.edge_thickness_range)
-        thickness_range = max(self.edge_thickness_range) - min_thickness
-        edge_thickness_dict = dict()
-        for edge in self.network.edges_iter(data=True):
-            key = tuple(sorted(edge[:2]))
-            if "weight" in edge[2] and weight_range:
-                edge_thickness_dict[key] = ((edge[2][
-                                                 "weight"] - min_weight) / weight_range * thickness_range) + min_thickness
-            else:
-                edge_thickness_dict[key] = min_thickness
-
-        if is_colour_attr_numerical:
-            maximum = max([colour_attr_val for colour_attr_val in edges.values()])
-            for edge in edges:
-                edges[edge] /= maximum
-
-            if self.normalise_edge_colours:
-                old_new_weights = dict(zip(sorted(edges.values()), range(len(edges))))
-
-                for edge in edges:
-                    edges[edge] = old_new_weights[edges[edge]]
-
-        if curved:
-            crossing_points = dict()
-            intersection_points = {mid_ax_line: [] for mid_ax_line in mid_ax_lines}
-            for edge in edges:
-                mid_ax_line, intersection = self._get_name_and_point_of_intersection(edge, node_positions, mid_ax_lines)
-                intersection_proportion = np.linalg.norm(np.array(intersection)) / mid_ax_lines[mid_ax_line].length
-                intersection_points[mid_ax_line].append((edge, intersection_proportion))
-
-            for mid_ax_line in mid_ax_lines:
-                sorted_edges = np.array(sorted(intersection_points[mid_ax_line], key=lambda point: point[1]))
-                # maximum = sorted_edges[-1, 1]
-                #sorted_edges[:, 1] = np.linspace(0, maximum, np.shape(sorted_edges)[0])
-
-                for edge, crossing_proportion in sorted_edges:
-                    crossing_points[edge] = place_point_on_line(mid_ax_lines[mid_ax_line],
-                                                                self.edge_curvature * crossing_proportion)
 
         gradient = eval("pyx.color.gradient." + self.edge_colour_gradient)
-        retlist = []
-        for edge in edges:
-            start, end = edge
-            colour = gradient.getcolor(edges[edge]) if isinstance(edges[edge], (float, int)) else convert_colour(
-                edges[edge])
-            entry = {
-                "start": node_positions[start],
-                "end": node_positions[end],
-                "colour": colour,
-                "thickness": edge_thickness_dict[edge]
-            }
-            if curved:
-                entry["crossing_point"] = crossing_points[edge]
-            retlist.append(entry)
-        return retlist
+        edge_colour_data = get_attr_dict(self.network.edges_iter(data=True), self.edge_colour_attribute, "unknown")
+        edge_colour_data = {key: value for key, value in edge_colour_data.items()
+                            if key[0] in working_nodes and key[1] in working_nodes}
 
-    @staticmethod
-    def _get_name_and_point_of_intersection(edge, node_positions, mid_ax_lines):
-        line = geom.LineString([node_positions[edge[0]], node_positions[edge[1]]])
-        for mid_ax_line in mid_ax_lines:
-            if line.intersects(mid_ax_lines[mid_ax_line]):
-                return mid_ax_line, line.intersection(mid_ax_lines[mid_ax_line])
+        if self.edge_category_colours:
+            actual_colours = {key: convert_colour(value) for key, value in self.edge_category_colours.items()}
+            default_colour = convert_colour(self.default_colour)
+            edge_colour_values = {key: actual_colours.get(value, default_colour) for key, value in
+                                  edge_colour_data.items()}
+        else:
+            edge_colour_floats = fit_attr_to_interval(edge_colour_data)
+            edge_colour_values = {key: gradient.getcolor(value) for key, value in edge_colour_floats.items()}
+
+        edge_thickness_data = get_attr_dict(self.network.edges_iter(data=True), "weight", 1)
+        edge_thickness_values = fit_attr_to_interval(edge_thickness_data, interval=self.edge_thickness_range)
+
+        return edge_colour_values, edge_thickness_values
+
+    def _create_edge_info(self):
+        """
+        :param node_positions: dictionary whose keys are nodes and values are (x,y) coordinate tuples
+        :type node_positions: dict
+        :return: list of dictionaries with attributes about the edge (start coord, end coord, thickness, colour, mid point)
+        :rtype: list
+        """
+
+        axes_this = list(self._axes)
+        axes_ccw = [axes_this[-1]] + axes_this[0:-1]
+        axes_cw = axes_this[1:] + [axes_this[0]]
+
+        edge_colour_values, edge_thickness_values = self._get_edge_colour_thickness()
+
+        plot_edges = list()
+        for i, this_axis_name in enumerate(axes_this):
+            this_axis = self._axes[this_axis_name]
+            ccw_axis, cw_axis = self._axes[axes_ccw[i]], self._axes[axes_cw[i]]
+            ccw_mid_ax_line = mid_line(ccw_axis.line, this_axis.line)
+            cw_mid_ax_line = mid_line(cw_axis.line, this_axis.line)
+
+            for edge in self.network.edges_iter(data=True):
+                if edge[0] not in this_axis:
+                    continue
+
+                if edge[1] in ccw_axis:
+                    new_edge = Edge(edge[0], this_axis, edge[1], ccw_axis, curvature=self.edge_curvature,
+                                    mid_ax_line=ccw_mid_ax_line)
+                elif edge[1] in cw_axis:
+                    new_edge = Edge(edge[0], this_axis, edge[1], cw_axis, curvature=self.edge_curvature,
+                                    mid_ax_line=cw_mid_ax_line)
+                else:
+                    continue
+
+                new_edge.set_visual_properties(edge_colour_values[edge[:2]], edge_thickness_values[edge[:2]])
+                plot_edges.append(new_edge)
+
+        return plot_edges
 
     @staticmethod
     def _weight_by_colocation(node_positions):
@@ -491,10 +403,7 @@ class HivePlot():
                                                                         colour_obj.c, colour_obj.m,
                                                                         colour_obj.y, colour_obj.k))
 
-    def _get_edges_colour_attr(self):
-        return set(nx.get_edge_attributes(self.network, self.edge_colour_attribute).values())
-
-    def _draw_legend(self, axes):
+    def _draw_legend(self):
         if not self.edge_category_colours:
             return
 
@@ -506,7 +415,7 @@ class HivePlot():
             )
 
         legend_str =  r"\linebreak".join(legend_items)
-        max_x = max([axes[key].coords[1][0] for key in axes])
+        max_x = max([self._axes[key].coords[1][0] for key in self._axes])
 
         self._legend_layer.text(max_x, 0, legend_str, [pyx.text.parbox(4), pyx.text.halign.left, pyx.text.valign.middle])
 
@@ -523,7 +432,61 @@ class HivePlot():
 
 
 def map_to_interval(num_range, proportion):
+    """
+    Return the number a certain proportion of the way along a number line between given values
+    :param num_range: range in which to place value
+    :type num_range: tuple
+    :param proportion: proportion along range at which to place value
+    :type proportion: float
+    :return: value *proportion* of the way along *num_range*
+    :rtype: float
+    """
     mini = min(num_range)
     rng = max(num_range) - mini
 
     return mini + proportion*rng
+
+
+def get_attr_dict(data_sequence, attr, default):
+    """
+    :param data_sequence: sequence of edges or nodes and their attributes
+    :type data_sequence: list
+    :param attr: name of attribute to select
+    :type attr: str
+    :param default: what to return when the attribute does not exist for an edge or node
+    :type default: object
+    :return: dictionary whose keys are lists identifying an edge or node, and values are the desired attribute
+    :rtype: dict
+    """
+    return {datum[:-1]: datum[-1].get(attr, default) for datum in data_sequence}
+
+
+def fit_attr_to_interval(attr_dict, random=False, distribute_evenly=False, interval=(0, 1)):
+    """
+    Convert an arbitrary set of attributes into a set of numerical attributes within a given range
+    :param attr_dict: dictionary whose values are the attribute to convert
+    :type attr_dict: dict
+    :param random: whether to randomly assign attribute values
+    :type random: bool
+    :param distribute_evenly: whether to spread the values evenly within the range (keys sharing attributes will still share in the output)
+    :type distribute_evenly: bool
+    :param interval: range within which to fit the returned attributes
+    :type interval: tuple
+    :return: dictionary whose keys are the input keys, and values are the fitted numerical attribute values
+    :rtype: dict
+    """
+    if random:
+        return {key: map_to_interval(interval, rand.random()) for key in attr_dict}
+
+    attr_values = np.array(list(attr_dict.values()))
+
+    try:
+        if distribute_evenly:
+            raise AssertionError("Exception required for even distribution")
+        attr_values = (attr_values - np.min(attr_values)) / np.ptp(attr_values)    # normalise to (0,1)
+        attr_values = attr_values * (max(interval) - min(interval)) + min(interval)
+        return dict(zip(list(attr_dict), attr_values))
+    except (TypeError, AssertionError):
+        uniques = sorted(set(attr_values))
+        category_to_float = dict(zip(uniques, np.linspace(interval[0], interval[1], num=len(uniques))))
+        return {key: category_to_float[value] for key, value in attr_dict.items()}

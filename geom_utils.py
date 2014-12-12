@@ -53,3 +53,14 @@ def place_point_on_line(line, proportion):
     vector = end - start
     vector_from_start = vector * proportion
     return tuple(start + vector_from_start)
+
+
+def multipoint_centroid(*args):
+    arr = np.array(args)
+    return tuple(np.mean(arr, axis=0))
+
+
+def mid_line(line1, line2):
+    start_point = multipoint_centroid(line1.coords[0], line2.coords[0])
+    end_point = multipoint_centroid(line1.coords[-1], line2.coords[-1])
+    return geom.LineString(coordinates=[start_point, end_point])
