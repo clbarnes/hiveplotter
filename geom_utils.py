@@ -42,7 +42,7 @@ def get_projecting_line(startpoint, angle, distance):
     return geom.LineString([startpoint, get_projection(startpoint, angle, distance)])
 
 
-def place_point_on_line(line, proportion):
+def place_point_proportion_along_line(line, proportion):
     """
     Generate position of a point on a single line
     :param line: A LineString on which the point is to placed

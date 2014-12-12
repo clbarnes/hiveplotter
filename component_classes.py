@@ -15,7 +15,7 @@ class Axis():
 
     def add_nodes(self, nodes_proportions):
         for node in nodes_proportions:
-            self.nodes[node] = geom_utils.place_point_on_line(self.line, nodes_proportions[node])
+            self.nodes[node] = geom_utils.place_point_proportion_along_line(self.line, nodes_proportions[node])
 
     def __contains__(self, item):
         return item in self.nodes
@@ -32,9 +32,10 @@ class Axis():
     def end(self):
         return self.line.coords[1]
 
-    def set_visual_properties(self, colour, thickness):
+    def set_visual_properties(self, colour, thickness, label=""):
         self.colour = colour
         self.thickness = thickness
+        self.label = label
 
     def draw(self, canvas):
         canvas.stroke(pyx.path.line(*geom_utils.linestring_to_coords(self.line)),
@@ -58,8 +59,8 @@ class Edge():
         intersection = mid_ax_line.intersection(geom.LineString(coordinates=[self.start_point, self.end_point]))
         if curvature is 1:
             return intersection
-        intersection_proportion = np.linalg.norm(np.array(intersection)) / mid_ax_line.length
-        return geom_utils.place_point_on_line(mid_ax_line, intersection_proportion * curvature)
+        intersection_proportion = np.linalg.norm(np.array(intersection)-np.array(mid_ax_line.coords[0])) / mid_ax_line.length
+        return geom_utils.place_point_proportion_along_line(mid_ax_line, intersection_proportion * start_axis.line.length/mid_ax_line.length)
 
     @property
     def coords(self):

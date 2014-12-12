@@ -2,7 +2,7 @@ import pyx
 import networkx as nx
 import numpy as np
 from collections import OrderedDict
-from geom_utils import get_projection, place_point_on_line, mid_line
+from geom_utils import get_projection, place_point_proportion_along_line, mid_line
 import copy
 from collections import Counter
 from colour_utils import convert_colour
@@ -45,8 +45,7 @@ class HivePlot():
         self.axis_length = 10
         self.proportional_offset_from_intersection = 0.2  # as a proportion of the longest axis
         self.split_axes = []
-        if self.split_axes:
-            raise NotImplementedError("Axis splitting is not yet implemented.")
+        self.split_angle = 30    # degrees
         self.normalise_axis_length = False
         self.axis_colour = "Gray"
         self.axis_thickness = 0.15
@@ -55,7 +54,7 @@ class HivePlot():
         # axis label parameters
         self.label_colour = "White"
         self.label_size = 15
-        self.label_spacing = 0.05
+        self.label_spacing = 0.1
 
         # node parameters
         self.normalise_node_distribution = False
@@ -64,7 +63,7 @@ class HivePlot():
         self.node_colour_gradient = "GreenRed"
 
         # edge parameters
-        self.edge_thickness_range = (0.005, 0.16)
+        self.edge_thickness_range = (0.002, 0.16)
         self.edge_colour_attribute = "weight"
         self.edge_colour_gradient = "Jet"
         self.edge_category_colours = None
@@ -152,30 +151,17 @@ class HivePlot():
         return min_x * extend, min_y * extend, max_x * extend, max_y * extend
 
     def _draw_axes(self):
-        """
-        :param axes: Dictionary of axis names and their geometries
-        :type axes: dict
-        :return: None
-        :rtype: None
-        """
         for axis in self._axes.values():
             axis.draw(self._foreground_layer)
 
     def _draw_labels(self):
-        text_alignment_list = [
-            [pyx.text.halign.boxcenter, pyx.text.valign.bottom],
-            [pyx.text.halign.boxleft, pyx.text.valign.top],
-            [pyx.text.halign.boxright, pyx.text.valign.top]
-        ]
-        text_alignment = dict(zip(list(self._axes), text_alignment_list))
+        text_alignment = [pyx.text.halign.boxcenter, pyx.text.valign.middle]
 
-        for axis_name in self._axes:
-            label_position = place_point_on_line(self._axes[axis_name], 1 + self.label_spacing)
-            txt_str = self._colour_text(self._size_text(axis_name, self.label_size), self.label_colour)
+        for axis in self._axes.values():
+            label_position = place_point_proportion_along_line(axis, 1 + self.label_spacing)
+            txt_str = self._colour_text(self._size_text(axis.label, self.label_size), self.label_colour)
 
-            self._foreground_layer.text(label_position[0], label_position[1],
-                                        txt_str,
-                                        text_alignment[axis_name])
+            self._foreground_layer.text(label_position[0], label_position[1], txt_str, text_alignment)
 
     def _size_text(self, text, size):
         return r"{\fontsize{" + str(size) + r"}{" + str(round(size * 1.2)) + r"}\selectfont " + text + r"}"
@@ -189,9 +175,9 @@ class HivePlot():
 
     def _draw_nodes(self):
         gradient = eval("pyx.color.gradient." + self.node_colour_gradient)
-        node_positions = dict()
+        node_positions = []
         for axis in self._axes.values():
-            node_positions.update(axis.nodes)
+            node_positions.extend(axis.nodes.values())
         node_position_weights = list(self._weight_by_colocation(node_positions).items())
         sorted_weights = sorted(node_position_weights, key=lambda x: x[1],
                                 reverse=self.node_superimpose_representation != "colour")
@@ -224,16 +210,16 @@ class HivePlot():
         self._axes = self._create_axes()
         self._place_nodes()
 
-        if len(self._axes) == 3:
+        if len(self.node_classes) == 3:
             edge_lines = self._create_edge_info()
         else:
             raise NotImplementedError("2-axis plots not yet implemented")
 
         self._draw_axes()
-        self._draw_labels()
         self._draw_edges(edge_lines)
         self._draw_nodes()
         self._draw_legend()
+        self._draw_labels()
         self._draw_background()
 
         if save_path is not None:
@@ -271,17 +257,24 @@ class HivePlot():
         angle = 0
         angle_spacing = 360/len(self.node_classes)
         for node_class in self.node_classes:
-            new_axis = self._create_axis(angle)
-            new_axis.set_visual_properties(convert_colour(self.axis_colour), self.axis_thickness)
-            axes[node_class] = new_axis
+            if node_class in self.split_axes:
+                ccw_angle = angle - self.split_angle/2
+                axes[node_class + "_ccw"] = self._create_axis(ccw_angle, label=node_class)
+                cw_angle = angle + self.split_angle/2
+                axes[node_class + "_cw"] = self._create_axis(cw_angle, label=node_class)
+            else:
+                new_axis = self._create_axis(angle, label=node_class)
+                axes[node_class] = new_axis
             angle += angle_spacing
 
         return axes
 
-    def _create_axis(self, angle):
+    def _create_axis(self, angle, label=""):
         ax_start = get_projection((0, 0), angle, self.proportional_offset_from_intersection * self.axis_length)
         ax_stop = get_projection(ax_start, angle, self.axis_length)
-        return Axis(ax_start, ax_stop)
+        new_axis = Axis(ax_start, ax_stop)
+        new_axis.set_visual_properties(convert_colour(self.axis_colour), self.axis_thickness, label=label)
+        return new_axis
 
     def _place_nodes(self):
         """
@@ -293,10 +286,17 @@ class HivePlot():
         ordered_nodes = self._order_nodes()
 
         for node_class in self.node_classes:
-            if len(self._axes[node_class].nodes) is 0:
-                self._axes[node_class].add_nodes(
-                    {key: value for key, value in ordered_nodes.items() if key in self.node_classes[node_class]}
-                )
+            nodes_to_add = {key: value for key, value in ordered_nodes.items() if
+                            key in self.node_classes[node_class]}
+            if node_class in self.split_axes:
+                self._add_node_to_axis_if_empty(node_class + "_ccw", nodes_to_add)
+                self._add_node_to_axis_if_empty(node_class + "_cw", nodes_to_add)
+            else:
+                self._add_node_to_axis_if_empty(node_class, nodes_to_add)
+
+    def _add_node_to_axis_if_empty(self, axis_key, nodes):
+        if len(self._axes[axis_key].nodes) is 0:
+            self._axes[axis_key].add_nodes(nodes)
 
     def _order_nodes(self):
         """
@@ -385,7 +385,7 @@ class HivePlot():
 
     @staticmethod
     def _weight_by_colocation(node_positions):
-        tally = Counter(list(node_positions.values()))
+        tally = Counter(node_positions)
         tally_arr = np.array(list(tally.items()), dtype="object")
         tally_arr[:, 1] = (tally_arr[:, 1] - 1) / (np.max(tally_arr[:, 1]) - 1)
         return dict(tally_arr)
@@ -414,8 +414,8 @@ class HivePlot():
                            self._colour_text(category, self.label_colour)), self.label_size)
             )
 
-        legend_str =  r"\linebreak".join(legend_items)
-        max_x = max([self._axes[key].coords[1][0] for key in self._axes])
+        legend_str = r"\linebreak".join(legend_items)
+        max_x = self._get_bbox()[2]
 
         self._legend_layer.text(max_x, 0, legend_str, [pyx.text.parbox(4), pyx.text.halign.left, pyx.text.valign.middle])
 
