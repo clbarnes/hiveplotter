@@ -45,7 +45,7 @@ class HivePlot():
         self.axis_length = 10
         self.proportional_offset_from_intersection = 0.2  # as a proportion of the longest axis
         self.split_axes = []
-        self.split_angle = 30    # degrees
+        self.split_angle = 30  # degrees
         self.normalise_axis_length = False
         self.axis_colour = "Gray"
         self.axis_thickness = 0.15
@@ -58,7 +58,7 @@ class HivePlot():
 
         # node parameters
         self.normalise_node_distribution = False
-        self.node_superimpose_representation = "colour"   # or "size"
+        self.node_superimpose_representation = "colour"  # or "size"
         self.node_size_range = (0.08, 0.3)
         self.node_colour_gradient = "GreenRed"
 
@@ -187,9 +187,11 @@ class HivePlot():
             node_size = None
         for coords, weight in sorted_weights:
             self._foreground_layer.stroke(pyx.path.circle(coords[0], coords[1],
-                                        node_size if node_size else map_to_interval(self.node_size_range, weight)))
+                                                          node_size if node_size else map_to_interval(
+                                                              self.node_size_range, weight)))
             self._foreground_layer.fill(pyx.path.circle(coords[0], coords[1],
-                                        node_size if node_size else map_to_interval(self.node_size_range, weight)),
+                                                        node_size if node_size else map_to_interval(
+                                                            self.node_size_range, weight)),
                                         [gradient.getcolor(weight)])
 
     def draw(self, save_path=None):
@@ -255,12 +257,12 @@ class HivePlot():
         axes = OrderedDict()
 
         angle = 0
-        angle_spacing = 360/len(self.node_classes)
+        angle_spacing = 360 / len(self.node_classes)
         for node_class in self.node_classes:
             if node_class in self.split_axes:
-                ccw_angle = angle - self.split_angle/2
+                ccw_angle = angle - self.split_angle / 2
                 axes[node_class + "_ccw"] = self._create_axis(ccw_angle, label=node_class)
-                cw_angle = angle + self.split_angle/2
+                cw_angle = angle + self.split_angle / 2
                 axes[node_class + "_cw"] = self._create_axis(cw_angle, label=node_class)
             else:
                 new_axis = self._create_axis(angle, label=node_class)
@@ -325,10 +327,19 @@ class HivePlot():
     def _get_edge_colour_thickness(self):
         working_nodes = self._get_working_nodes()
 
+        edge_thickness_data = get_attr_dict(self.network.edges_iter(data=True), "weight", 1)
+        edge_thickness_values = fit_attr_to_interval(edge_thickness_data, interval=self.edge_thickness_range)
+        edge_thickness_values = {key: value for key, value in edge_thickness_values.items()
+                                 if {key[0], key[1]}.issubset(working_nodes)}
+
         gradient = eval("pyx.color.gradient." + self.edge_colour_gradient)
+        if self.edge_colour_attribute is "random":
+            edge_colour_values = {key: gradient.getcolor(rand.random()) for key in edge_thickness_data}
+            return edge_colour_values, edge_thickness_values
+
         edge_colour_data = get_attr_dict(self.network.edges_iter(data=True), self.edge_colour_attribute, "unknown")
         edge_colour_data = {key: value for key, value in edge_colour_data.items()
-                            if key[0] in working_nodes and key[1] in working_nodes}
+                            if {key[0], key[1]}.issubset(working_nodes)}
 
         if self.edge_category_colours:
             actual_colours = {key: convert_colour(value) for key, value in self.edge_category_colours.items()}
@@ -338,9 +349,6 @@ class HivePlot():
         else:
             edge_colour_floats = fit_attr_to_interval(edge_colour_data)
             edge_colour_values = {key: gradient.getcolor(value) for key, value in edge_colour_floats.items()}
-
-        edge_thickness_data = get_attr_dict(self.network.edges_iter(data=True), "weight", 1)
-        edge_thickness_values = fit_attr_to_interval(edge_thickness_data, interval=self.edge_thickness_range)
 
         return edge_colour_values, edge_thickness_values
 
@@ -417,7 +425,8 @@ class HivePlot():
         legend_str = r"\linebreak".join(legend_items)
         max_x = self._get_bbox()[2]
 
-        self._legend_layer.text(max_x, 0, legend_str, [pyx.text.parbox(4), pyx.text.halign.left, pyx.text.valign.middle])
+        self._legend_layer.text(max_x, 0, legend_str,
+                                [pyx.text.parbox(4), pyx.text.halign.left, pyx.text.valign.middle])
 
     def _convert_colours(self):
         d = {self.label_colour: convert_colour(self.label_colour),
@@ -444,7 +453,7 @@ def map_to_interval(num_range, proportion):
     mini = min(num_range)
     rng = max(num_range) - mini
 
-    return mini + proportion*rng
+    return mini + proportion * rng
 
 
 def get_attr_dict(data_sequence, attr, default):
@@ -483,7 +492,7 @@ def fit_attr_to_interval(attr_dict, random=False, distribute_evenly=False, inter
     try:
         if distribute_evenly:
             raise AssertionError("Exception required for even distribution")
-        attr_values = (attr_values - np.min(attr_values)) / np.ptp(attr_values)    # normalise to (0,1)
+        attr_values = (attr_values - np.min(attr_values)) / np.ptp(attr_values)  # normalise to (0,1)
         attr_values = attr_values * (max(interval) - min(interval)) + min(interval)
         return dict(zip(list(attr_dict), attr_values))
     except (TypeError, AssertionError):
