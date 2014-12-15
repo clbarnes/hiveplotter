@@ -9,6 +9,11 @@ from colour_utils import convert_colour
 import random as rand
 import warnings
 from component_classes import Axis, Edge
+try:
+    import PIL
+    PIL_imported = True
+except ImportError:
+    PIL_imported = False
 
 
 class HivePlot():
@@ -61,6 +66,7 @@ class HivePlot():
         self.node_superimpose_representation = "colour"  # or "size"
         self.node_size_range = (0.08, 0.3)
         self.node_colour_gradient = "GreenRed"
+        self.node_colour = "Green"
 
         # edge parameters
         self.edge_thickness_range = (0.002, 0.16)
@@ -175,6 +181,7 @@ class HivePlot():
 
     def _draw_nodes(self):
         gradient = eval("pyx.color.gradient." + self.node_colour_gradient)
+        colour = convert_colour(self.node_colour)
         node_positions = []
         for axis in self._axes.values():
             node_positions.extend(axis.nodes.values())
@@ -186,15 +193,19 @@ class HivePlot():
         else:
             node_size = None
         for coords, weight in sorted_weights:
+            if self.node_superimpose_representation is "colour":
+                this_colour = gradient.getcolor(weight)
+            else:
+                this_colour = colour
             self._foreground_layer.stroke(pyx.path.circle(coords[0], coords[1],
                                                           node_size if node_size else map_to_interval(
                                                               self.node_size_range, weight)))
             self._foreground_layer.fill(pyx.path.circle(coords[0], coords[1],
                                                         node_size if node_size else map_to_interval(
                                                             self.node_size_range, weight)),
-                                        [gradient.getcolor(weight)])
+                                        [this_colour])
 
-    def draw(self, save_path=None):
+    def draw(self, show=False, save_path=None):
         """
         Draw the graph using the current settings
         :param save_path: path of PDF file to save graph into
@@ -225,11 +236,14 @@ class HivePlot():
         self._draw_background()
 
         if save_path is not None:
-            self.save_canvas(save_path)
+            self.save_plot(save_path)
+
+        if show:
+            self.show_plot()
 
         return True
 
-    def save_canvas(self, path):
+    def save_plot(self, path):
         """
         :param path: Save path
         :type path: str
@@ -240,6 +254,14 @@ class HivePlot():
             warnings.simplefilter("ignore")
             self.canvas.writePDFfile(path)
         return True
+
+    def show_plot(self, ghostscript_binary="gs", ghostscript_device="png16m"):
+        if PIL_imported:
+            img_bytes = self.canvas.pipeGS(ghostscript_device, gs=ghostscript_binary)
+            img = PIL.Image.open(img_bytes)
+            img.show()
+        else:
+            raise ImportError("PIL could not be imported. Save plot and view as PDF.")
 
     def _create_axes(self):
         """
