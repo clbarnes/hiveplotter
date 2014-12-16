@@ -9,6 +9,7 @@ from colour_utils import convert_colour
 import random as rand
 import warnings
 from component_classes import Axis, Edge
+import defaults
 try:
     import PIL
     PIL_imported = True
@@ -32,7 +33,6 @@ class HivePlot():
         :param kwargs: Dictionary of attributes which can override default behaviour of the plot
         :type kwargs: dict
         """
-        self.default_colour = "White"
         self.network = network
         self.node_class_attribute = node_class_attribute
         self.node_classes = self._split_nodes(node_class_values)
@@ -43,38 +43,39 @@ class HivePlot():
         self.parent_hiveplot = None
 
         # background parameters
-        self.background_proportion = 1.2
-        self.background_colour = "Black"
+        self.background_proportion = defaults.background_proportion
+        self.background_colour = defaults.background_colour
 
         # axis parameters
-        self.axis_length = 10
-        self.proportional_offset_from_intersection = 0.2  # as a proportion of the longest axis
-        self.split_axes = []
-        self.split_angle = 30  # degrees
-        self.normalise_axis_length = False
-        self.axis_colour = "Gray"
-        self.axis_thickness = 0.15
-        self.order_nodes_by = "degree"
+        self.axis_length = defaults.axis_length
+        self.proportional_offset_from_intersection = defaults.proportional_offset_from_intersection
+        self.split_axes = defaults.split_axes
+        self.split_angle = defaults.split_angle
+        self.normalise_axis_length = defaults.normalise_axis_length
+        self.axis_colour = defaults.axis_colour
+        self.axis_thickness = defaults.axis_thickness
+        self.order_nodes_by = defaults.order_nodes_by
 
         # axis label parameters
-        self.label_colour = "White"
-        self.label_size = 15
-        self.label_spacing = 0.1
+        self.label_colour = defaults.label_colour
+        self.label_size = defaults.label_size
+        self.label_spacing = defaults.label_spacing
 
         # node parameters
-        self.normalise_node_distribution = False
-        self.node_superimpose_representation = "colour"  # or "size"
-        self.node_size_range = (0.08, 0.3)
-        self.node_colour_gradient = "GreenRed"
-        self.node_colour = "Green"
+        self.normalise_node_distribution = defaults.normalise_node_distribution
+        self.node_superimpose_representation = defaults.node_superimpose_representation
+        self.node_size_range = defaults.node_size_range
+        self.node_colour_gradient = defaults.node_colour_gradient
+        self.default_node_colour = defaults.default_node_colour
 
         # edge parameters
-        self.edge_thickness_range = (0.002, 0.16)
-        self.edge_colour_attribute = "weight"
-        self.edge_colour_gradient = "Jet"
-        self.edge_category_colours = None
-        self.edge_curvature = 1.7
-        self.normalise_edge_colours = False
+        self.edge_thickness_range = defaults.edge_thickness_range
+        self.edge_colour_attribute = defaults.edge_colour_attribute
+        self.edge_colour_gradient = defaults.edge_colour_gradient
+        self.edge_category_colours = defaults.edge_category_colours
+        self.curved_edges = defaults.curved_edges
+        self.normalise_edge_colours = defaults.normalise_edge_colours
+        self.default_edge_colour = defaults.default_edge_colour
 
         self.__dict__.update(kwargs)
 
@@ -181,7 +182,7 @@ class HivePlot():
 
     def _draw_nodes(self):
         gradient = eval("pyx.color.gradient." + self.node_colour_gradient)
-        colour = convert_colour(self.node_colour)
+        colour = convert_colour(self.default_node_colour)
         node_positions = []
         for axis in self._axes.values():
             node_positions.extend(axis.nodes.values())
@@ -365,7 +366,7 @@ class HivePlot():
 
         if self.edge_category_colours:
             actual_colours = {key: convert_colour(value) for key, value in self.edge_category_colours.items()}
-            default_colour = convert_colour(self.default_colour)
+            default_colour = convert_colour(self.default_edge_colour)
             edge_colour_values = {key: actual_colours.get(value, default_colour) for key, value in
                                   edge_colour_data.items()}
         else:
@@ -400,10 +401,10 @@ class HivePlot():
                     continue
 
                 if edge[1] in ccw_axis:
-                    new_edge = Edge(edge[0], this_axis, edge[1], ccw_axis, curvature=self.edge_curvature,
+                    new_edge = Edge(edge[0], this_axis, edge[1], ccw_axis, curved=self.curved_edges,
                                     mid_ax_line=ccw_mid_ax_line)
                 elif edge[1] in cw_axis:
-                    new_edge = Edge(edge[0], this_axis, edge[1], cw_axis, curvature=self.edge_curvature,
+                    new_edge = Edge(edge[0], this_axis, edge[1], cw_axis, curved=self.curved_edges,
                                     mid_ax_line=cw_mid_ax_line)
                 else:
                     continue

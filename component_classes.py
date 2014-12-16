@@ -43,21 +43,21 @@ class Axis():
 
 
 class Edge():
-    def __init__(self, start_node, start_axis, end_node, end_axis, curvature=1, mid_ax_line=None):
+    def __init__(self, start_node, start_axis, end_node, end_axis, curved=True, mid_ax_line=None):
         self.start_node = start_node
         self.end_node = end_node
         self.start_point = start_axis.nodes[start_node]
         self.end_point = end_axis.nodes[end_node]
-        self.mid_point = self._make_midpoint(start_axis, end_axis, curvature, mid_ax_line)
+        self.mid_point = self._make_midpoint(start_axis, end_axis, curved, mid_ax_line)
         self.colour = None
         self.thickness = None
 
-    def _make_midpoint(self, start_axis, end_axis, curvature, mid_ax_line):
+    def _make_midpoint(self, start_axis, end_axis, curved, mid_ax_line):
         if mid_ax_line is None:
             mid_ax_line = geom_utils.mid_line(start_axis.line, end_axis.line)
 
         intersection = mid_ax_line.intersection(geom.LineString(coordinates=[self.start_point, self.end_point]))
-        if curvature is 1:
+        if not curved:
             return intersection
         intersection_proportion = np.linalg.norm(np.array(intersection)-np.array(mid_ax_line.coords[0])) / mid_ax_line.length
         return geom_utils.place_point_proportion_along_line(mid_ax_line, intersection_proportion * start_axis.line.length/mid_ax_line.length)
