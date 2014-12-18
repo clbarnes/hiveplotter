@@ -35,7 +35,6 @@ class HivePlot():
         """
         self.network = network
         self.node_class_attribute = node_class_attribute
-        self.node_classes = self._split_nodes(node_class_values)
 
         # define default behaviour, which can be overridden with kwargs
 
@@ -80,12 +79,13 @@ class HivePlot():
         self.__dict__.update(kwargs)
 
         # fields to be filled by the object
+        self.node_classes = self._split_nodes(node_class_values)
+        self.colour_definitions = self._convert_colours()
         self.canvas = None
         self.legend_categories = None
         self._background_layer = None
         self._foreground_layer = None
         self._legend_layer = None
-        self.colour_definitions = self._convert_colours()
         self._axes = None
 
     def _split_nodes(self, node_class_names):
@@ -97,6 +97,10 @@ class HivePlot():
         :rtype: dict
         """
         node_attribute_dict = nx.get_node_attributes(self.network, self.node_class_attribute)
+        if self.order_nodes_by != 'degree':
+            valid_node_set = set(nx.get_node_attributes(self.network, self.order_nodes_by))
+        else:
+            valid_node_set = set(node_attribute_dict)
 
         if node_class_names is None:
             node_class_names = list(node_attribute_dict.values())
@@ -113,9 +117,9 @@ class HivePlot():
                 node_attribute_dict.pop(fd)
 
         split_nodes = OrderedDict([(node_class, []) for node_class in node_class_names])
-        node_list = list(node_attribute_dict)
-        for i, node_class in enumerate(node_attribute_dict.values()):
-            split_nodes[node_class].append(node_list[i])
+        for node_name, node_class in node_attribute_dict.items():
+            if node_name in valid_node_set:
+                split_nodes[node_class].append(node_name)
 
         return split_nodes
 
@@ -215,12 +219,6 @@ class HivePlot():
         :rtype: bool
         """
 
-        self._setup_latex()
-
-        self.canvas = pyx.canvas.canvas()
-        self._background_layer = self.canvas.layer("background")
-        self._foreground_layer = self.canvas.layer("foreground", above="background")
-        self._legend_layer = self.canvas.layer("legend", above="foreground")
         self._axes = self._create_axes()
         self._place_nodes()
 
@@ -228,6 +226,13 @@ class HivePlot():
             edge_lines = self._create_edge_info()
         else:
             raise NotImplementedError("2-axis plots not yet implemented")
+
+        self._setup_latex()
+
+        self.canvas = pyx.canvas.canvas()
+        self._background_layer = self.canvas.layer("background")
+        self._foreground_layer = self.canvas.layer("foreground", above="background")
+        self._legend_layer = self.canvas.layer("legend", above="foreground")
 
         self._draw_axes()
         self._draw_edges(edge_lines)
@@ -325,14 +330,16 @@ class HivePlot():
 
     def _order_nodes(self):
         """
-        Order nodes by their degree.
+        Order nodes by an arbitrary attribute.
         :return: A dictionary whose keys are nodes, and values are proportions up their respective axes at which the nodes should be placed
         """
         working_nodes = self._get_working_nodes()
         if self.order_nodes_by is "degree":
             node_attrs = nx.degree(self.network, nbunch=working_nodes)
         else:
-            node_attrs = {node[0]: node[1][self.order_nodes_by] for node in self.network.nodes(data=True)}
+            node_attrs = {node[0]: node[1][self.order_nodes_by]
+                          for node in self.network.nodes(data=True)
+                          if node[0] in working_nodes}
 
         if self.normalise_axis_length:
             ret_dict = dict()
@@ -372,6 +379,9 @@ class HivePlot():
         else:
             edge_colour_floats = fit_attr_to_interval(edge_colour_data)
             edge_colour_values = {key: gradient.getcolor(value) for key, value in edge_colour_floats.items()}
+            sorted_data = sorted(edge_colour_data.items())
+            sorted_colours = sorted(edge_colour_values.items())
+            self.edge_category_colours = dict(zip(list(zip(*sorted_data))[1], list(zip(*sorted_colours))[1]))
 
         return edge_colour_values, edge_thickness_values
 
@@ -426,9 +436,17 @@ class HivePlot():
         pyx.text.preamble(r"\usepackage{color}")
         pyx.text.preamble(r"\usepackage[T1]{fontenc}")
         pyx.text.preamble(r"\usepackage{lmodern}")
-        self._define_colours(self.colour_definitions)
+        self._define_colours()
 
-    def _define_colours(self, colour_dict):
+    def _define_colours(self):
+        colour_dict = {self.label_colour: convert_colour(self.label_colour),
+             self.background_colour: convert_colour(self.background_colour),
+             self.axis_colour: convert_colour(self.axis_colour)}
+
+        if self.edge_category_colours:
+            for value in self.edge_category_colours.values():
+                colour_dict[str(value)] = convert_colour(value)
+
         for colour_name, colour_obj in colour_dict.items():
             pyx.text.preamble(r"\definecolor{%s}{cmyk}{%g,%g,%g,%g}" % (colour_name,
                                                                         colour_obj.c, colour_obj.m,

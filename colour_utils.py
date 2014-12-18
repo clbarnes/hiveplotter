@@ -7,24 +7,28 @@ def convert_colour(inp):
     :param inp: string corresponding to pyx's RGB or CMYK named colours, tuple of (r,g,b) values, or greyscale value between 0 and 1
     :return: pyx.color.cmyk object
     """
+
+    if isinstance(inp, pyx.color.color):
+        return inp.cmyk()
+
     if inp in cmyk_names:
         return eval("pyx.color.cmyk." + inp)
     elif inp in rgb_names:
-        return _rgb_obj_to_cmyk_obj(eval("pyx.color.rgb." + inp))
+        return eval("pyx.color.rgb." + inp).cmyk()
 
     try:
         length = len(inp)
         if length == 3:
-            return _rgb_to_cmyk_obj(*inp)
+            return pyx.color.rgb(*inp).cmyk()
         elif length == 4:
             return pyx.color.cmyk(*inp)
     except TypeError:
         pass
 
     try:
-        return _greyscale_to_cmyk_obj(inp)
+        return pyx.color.gray(inp).cmyk()
     except:
-        return _greyscale_to_cmyk_obj(0.5)
+        return pyx.color.gray(0.5).cmyk()
 
 
 def categories_to_float(categories):
@@ -34,29 +38,6 @@ def categories_to_float(categories):
     :return: A dictionary whose keys are the original categories and whose values are unique, evenly spaced floats between 0 and 1.
     """
     return {category: i/(len(categories)-1) for i, category in enumerate(sorted(categories))}
-
-
-def _rgb_obj_to_cmyk_obj(rgb_obj):
-    return _rgb_to_cmyk_obj(rgb_obj.r, rgb_obj.g, rgb_obj.b)
-
-
-def _rgb_to_cmyk_obj(r, g, b):
-    c = 1-r
-    m = 1-g
-    y = 1-b
-
-    min_cmy = min(c, m, y)
-    c = (c - min_cmy) / (1 - min_cmy)
-    m = (m - min_cmy) / (1 - min_cmy)
-    y = (y - min_cmy) / (1 - min_cmy)
-    k = min_cmy
-
-    return pyx.color.cmyk(c, m, y, k)
-
-
-def _greyscale_to_cmyk_obj(grey_val):
-    return pyx.color.cmyk(0, 0, 0, 1 - grey_val)
-
 
 rgb_names = {
     "red",
