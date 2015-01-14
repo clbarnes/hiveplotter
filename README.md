@@ -2,7 +2,9 @@
 hiveplotter
 ===========
 
-A python library for creating [hive plots](http://www.hiveplot.net/) from [NetworkX](https://networkx.github.io/) graphs.
+A python library for creating highly customisable [hive plots](http://www.hiveplot.net/) from [NetworkX](https://networkx.github.io/) graphs.
+
+This project is released under the [Revised BSD License](https://raw.githubusercontent.com/clbarnes/hiveplotter/master/LICENSE).
 
 WIP
 

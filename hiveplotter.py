@@ -88,6 +88,7 @@ class HivePlot():
     def _split_nodes(self, node_class_names):
         """
         Split nodes based on the attribute specified in self.node_class_attribute
+
         :param node_class_names: Values of node_class_attribute which will be included in the plot (in clockwise order)
         :type node_class_names: list
         :return: A dictionary whose keys are the node class attribute values, and values are lists of nodes belonging to that class
@@ -135,6 +136,7 @@ class HivePlot():
     def _draw_background(self):
         """
         Draw the background of the plot slightly larger than everything in the foreground.
+
         :return: None
         :rtype: None
         """
@@ -145,6 +147,7 @@ class HivePlot():
     def _get_bbox(self, extend=1.1):
         """
         Get the extents of the canvas.
+
         :param extend: the proportion of the extent which should be added to the size of the bounding box
         :type extend: float or int
         :return: extents of bounding box- (minX, minY, maxX, maxY)
@@ -172,9 +175,29 @@ class HivePlot():
             self._foreground_layer.text(label_position[0], label_position[1], text_str, text_alignment)
 
     def _size_text(self, text, size):
+        """
+        Wrap a string in TeX tags to define its size
+
+        :param text: Text to be sized
+        :type text: str
+        :param size: Point size for text
+        :type size: int
+        :return: TeX string for text of a the given size
+        :rtype: str
+        """
         return r"{\fontsize{" + str(size) + r"}{" + str(round(size * 1.2)) + r"}\selectfont " + str(text) + r"}"
 
     def _colour_text(self, text, colour):
+        """
+        Wrap a string in TeX tags to define its colour
+
+        :param text: Text to be coloured
+        :type text: str
+        :param colour: String identifying a colour as defined in self._define_colours()
+        :type colour: int
+        :return: TeX string for text of a the given colour
+        :rtype: str
+        """
         return r"\textcolor{" + str(colour) + "}{" + str(text) + "}"
 
     def _draw_edges(self, edges):
@@ -210,6 +233,7 @@ class HivePlot():
     def draw(self, show=False, save_path=None):
         """
         Draw the graph using the current settings
+
         :param save_path: path of PDF file to save graph into
         :type save_path: str
         :return: True for successful completion
@@ -248,6 +272,8 @@ class HivePlot():
 
     def save_plot(self, path):
         """
+        Save the plot as a vector-drawn PDF
+
         :param path: Save path
         :type path: str
         :return: True if complete
@@ -259,10 +285,32 @@ class HivePlot():
         return True
 
     def show_plot(self, resolution=100, ghostscript_binary="gs", ghostscript_device="png16m"):
+        """
+        Show the plot. Requires ghostscript.
+
+        :param resolution: Resolution of plot in DPI (default 100)
+        :type resolution: int
+        :param ghostscript_binary: Path to ghostscript binary on local system (default 'gs')
+        :type ghostscript_binary: str
+        :param ghostscript_device: Device to write with, default 'png16m'
+        :type ghostscript_device: str
+        """
         img = self.as_bitmap(resolution, ghostscript_binary, ghostscript_device)
         img.show()
 
     def as_bitmap(self, resolution=100, ghostscript_binary="gs", ghostscript_device="png16m"):
+        """
+        Return a bitmap version of the plot.
+
+        :param resolution: Resolution of plot in DPI (default 100)
+        :type resolution: int
+        :param ghostscript_binary: Path to ghostscript binary on local system (default 'gs')
+        :type ghostscript_binary: str
+        :param ghostscript_device: Device to write with, default 'png16m'
+        :type ghostscript_device: str
+        :return: Bitmap image of the plot.
+        :rtype: PIL.Image
+        """
         img_bytes = self.canvas.pipeGS(ghostscript_device, resolution=resolution, gs=ghostscript_binary)
         img = PIL.Image.open(img_bytes)
         return img
@@ -270,6 +318,7 @@ class HivePlot():
     def _create_axes(self):
         """
         Generate axes on which to plot nodes. Copies parent hiveplot's axes if they exist.
+
         :return: A dictionary from node class attribute values to Axis objects
         :rtype: dict
         """
@@ -310,6 +359,7 @@ class HivePlot():
     def _place_nodes(self):
         """
         Places nodes on Axis objects. Does nothing if axes already have nodes.
+
         :param axes: A dictionary whose keys are the node class attribute values, and values are component_classes.Axis objects of the axis those nodes will be plotted on
         :type axes: dict
         """
@@ -332,6 +382,7 @@ class HivePlot():
     def _order_nodes(self):
         """
         Order nodes by an arbitrary attribute.
+
         :return: A dictionary whose keys are nodes, and values are proportions up their respective axes at which the nodes should be placed
         """
         working_nodes = self._get_working_nodes()
