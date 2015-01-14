@@ -10,11 +10,7 @@ import random as rand
 import warnings
 from utils.component_classes import Axis, Edge
 import defaults
-try:
-    import PIL.Image
-    PIL_imported = True
-except ImportError:
-    PIL_imported = False
+import PIL.Image
 
 
 class HivePlot():
@@ -262,13 +258,14 @@ class HivePlot():
             self.canvas.writePDFfile(path)
         return True
 
-    def show_plot(self, ghostscript_binary="gs", ghostscript_device="png16m"):
-        if PIL_imported:
-            img_bytes = self.canvas.pipeGS(ghostscript_device, gs=ghostscript_binary)
-            img = PIL.Image.open(img_bytes)
-            img.show()
-        else:
-            raise ImportError("PIL could not be imported. Save plot and view as PDF.")
+    def show_plot(self, resolution=100, ghostscript_binary="gs", ghostscript_device="png16m"):
+        img = self.as_bitmap(resolution, ghostscript_binary, ghostscript_device)
+        img.show()
+
+    def as_bitmap(self, resolution=100, ghostscript_binary="gs", ghostscript_device="png16m"):
+        img_bytes = self.canvas.pipeGS(ghostscript_device, resolution=resolution, gs=ghostscript_binary)
+        img = PIL.Image.open(img_bytes)
+        return img
 
     def _create_axes(self):
         """
@@ -290,21 +287,24 @@ class HivePlot():
         for node_class in self.node_classes:
             if node_class in self.split_axes:
                 ccw_angle = angle - self.split_angle / 2
-                axes[node_class + "_ccw"] = self._create_axis(ccw_angle, label=node_class)
+                axes[node_class + "_ccw"] = self._create_axis(ccw_angle,
+                                                              label=node_class, thickness=self.axis_thickness/2)
                 cw_angle = angle + self.split_angle / 2
-                axes[node_class + "_cw"] = self._create_axis(cw_angle, label=node_class)
+                axes[node_class + "_cw"] = self._create_axis(cw_angle,
+                                                             label=node_class, thickness=self.axis_thickness/2)
             else:
-                new_axis = self._create_axis(angle, label=node_class)
-                axes[node_class] = new_axis
+                axes[node_class] = self._create_axis(angle, label=node_class)
             angle += angle_spacing
 
         return axes
 
-    def _create_axis(self, angle, label=""):
+    def _create_axis(self, angle, label="", thickness=None):
+        if thickness is None:
+            thickness = self.axis_thickness
         ax_start = get_projection((0, 0), angle, self.proportional_offset_from_intersection * self.axis_length)
         ax_stop = get_projection(ax_start, angle, self.axis_length)
         new_axis = Axis(ax_start, ax_stop)
-        new_axis.set_visual_properties(convert_colour(self.axis_colour), self.axis_thickness, label=label)
+        new_axis.set_visual_properties(convert_colour(self.axis_colour), thickness, label=label)
         return new_axis
 
     def _place_nodes(self):

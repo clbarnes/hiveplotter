@@ -52,18 +52,18 @@ label_spacing = 0.1
 normalise_node_distribution = False
 """Whether to spread the nodes evenly along the axis"""
 
-node_superimpose_representation = "colour"
+node_superimpose_representation = "size"
 """String of 'colour' or 'size'"""
 
 node_size_range = (0.08, 0.3)
 """Range of radiuses of nodes. If node_superimpose_representation is 'colour', the minimum will be used"""
 
-node_colour_gradient = "GreenRed"
+node_colour_gradient = "WhiteGreen"
 """Colour gradient from which to select node colours.
 Should be a string corresponding to one of PyX's named colour gradients_.
 .. _gradients: http://pyx.sourceforge.net/manual/gradientname.html"""
 
-default_node_colour = "Green"
+default_node_colour = "green"
 """Default colour of nodes.
 Can be string corresponding to one of PyX's named RGB or CMYK colours_, a 3- or 4-length tuple of RGB or CMYK values, or a greyscale value between 0 and 1.
 .. _colours: http://pyx.sourceforge.net/manual/colorname.html"""
@@ -79,7 +79,7 @@ edge_colour_attribute = "weight"
 edge_category_legend = False
 """Whether to produce a legend of the edges based on their colour"""
 
-edge_colour_gradient = "Jet"
+edge_colour_gradient = "WhiteRed"
 """Gradient from which to select edge colours.
 Should be a string corresponding to one of PyX's named colour gradients_.
 .. _gradients: http://pyx.sourceforge.net/manual/gradientname.html"""
