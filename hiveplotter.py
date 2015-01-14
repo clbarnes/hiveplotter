@@ -2,13 +2,13 @@ import pyx
 import networkx as nx
 import numpy as np
 from collections import OrderedDict
-from geom_utils import get_projection, place_point_proportion_along_line, mid_line
+from utils.geom_utils import get_projection, place_point_proportion_along_line, mid_line
 import copy
 from collections import Counter
-from colour_utils import convert_colour
+from utils.colour_utils import convert_colour
 import random as rand
 import warnings
-from component_classes import Axis, Edge
+from utils.component_classes import Axis, Edge
 import defaults
 try:
     import PIL
