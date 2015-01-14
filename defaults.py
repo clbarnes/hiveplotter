@@ -76,6 +76,9 @@ edge_thickness_range = (0.002, 0.16)
 edge_colour_attribute = "weight"
 """What attribute of the edge should be used to colour it. Should be a string referring to the attribute, or 'random'"""
 
+edge_category_legend = False
+"""Whether to produce a legend of the edges based on their colour"""
+
 edge_colour_gradient = "Jet"
 """Gradient from which to select edge colours.
 Should be a string corresponding to one of PyX's named colour gradients_.

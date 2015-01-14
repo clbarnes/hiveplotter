@@ -3,7 +3,7 @@ from distutils.core import setup
 setup(
     name='hiveplotter',
     version='0.1',
-    packages=[''],
+    packages=['utils'],
     url='https://github.com/clbarnes/hiveplotter',
     license='MIT',
     author='clbarnes',

@@ -11,7 +11,7 @@ import warnings
 from utils.component_classes import Axis, Edge
 import defaults
 try:
-    import PIL
+    import PIL.Image
     PIL_imported = True
 except ImportError:
     PIL_imported = False
@@ -71,6 +71,7 @@ class HivePlot():
         self.edge_thickness_range = defaults.edge_thickness_range
         self.edge_colour_attribute = defaults.edge_colour_attribute
         self.edge_colour_gradient = defaults.edge_colour_gradient
+        self.edge_category_legend = defaults.edge_category_legend
         self.edge_category_colours = defaults.edge_category_colours
         self.curved_edges = defaults.curved_edges
         self.normalise_edge_colours = defaults.normalise_edge_colours
@@ -103,7 +104,7 @@ class HivePlot():
             valid_node_set = set(node_attribute_dict)
 
         if node_class_names is None:
-            node_class_names = list(node_attribute_dict.values())
+            node_class_names = set(node_attribute_dict.values())
             if len(node_class_names) > 3:
                 raise ValueError("Nodes should be in 3 or fewer classes based on their {} attribute.".format(
                     self.node_class_attribute))
@@ -170,15 +171,15 @@ class HivePlot():
 
         for axis in self._axes.values():
             label_position = place_point_proportion_along_line(axis, 1 + self.label_spacing)
-            txt_str = self._colour_text(self._size_text(axis.label, self.label_size), self.label_colour)
+            text_str = self._colour_text(self._size_text(axis.label, self.label_size), self.label_colour)
 
-            self._foreground_layer.text(label_position[0], label_position[1], txt_str, text_alignment)
+            self._foreground_layer.text(label_position[0], label_position[1], text_str, text_alignment)
 
     def _size_text(self, text, size):
-        return r"{\fontsize{" + str(size) + r"}{" + str(round(size * 1.2)) + r"}\selectfont " + text + r"}"
+        return r"{\fontsize{" + str(size) + r"}{" + str(round(size * 1.2)) + r"}\selectfont " + str(text) + r"}"
 
     def _colour_text(self, text, colour):
-        return r"\textcolor{" + str(colour) + "}{" + text + "}"
+        return r"\textcolor{" + str(colour) + "}{" + str(text) + "}"
 
     def _draw_edges(self, edges):
         for edge in edges:
@@ -272,7 +273,7 @@ class HivePlot():
     def _create_axes(self):
         """
         Generate axes on which to plot nodes. Copies parent hiveplot's axes if they exist.
-        :return: A dictionary whose keys are the node class attribute values, and values are Axis objects
+        :return: A dictionary from node class attribute values to Axis objects
         :rtype: dict
         """
 
@@ -453,7 +454,7 @@ class HivePlot():
                                                                         colour_obj.y, colour_obj.k))
 
     def _draw_legend(self):
-        if not self.edge_category_colours:
+        if not self.edge_category_legend or not self.edge_category_colours:
             return
 
         legend_items = []
