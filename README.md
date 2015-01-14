@@ -9,6 +9,5 @@ This project is released under the [Revised BSD License](https://raw.githubuserc
 WIP
 
 Requires:
- - LaTeX (probably)
- - Dependencies specified in the setup.py
- - Maybe some other stuff (I have no idea what I'm doing)
+ - LaTeX
+ - Dependencies in setup.py: shapely, numpy, networkx, pyx, numpy, PIL
