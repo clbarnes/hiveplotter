@@ -1,12 +1,3 @@
-# -*- coding: utf-8 -*-
-# <nbformat>3.0</nbformat>
-
-# <headingcell level=1>
-
-# hiveplotter usage
-
-# <codecell>
-
 from hiveplotter import HivePlot
 import networkx as nx
 import random as rand
