@@ -18,6 +18,7 @@ setup(
     name='hiveplotter',
     version='0.1',
     packages=['utils'],
+    py_modules=['hiveplotter', 'defaults'],
     url='https://github.com/clbarnes/hiveplotter',
     license='BSD',
     author='clbarnes',

@@ -104,7 +104,7 @@ class HivePlot():
             node_class_names = set(node_attribute_dict.values())
             if len(node_class_names) > 3:
                 raise ValueError("Nodes should be in 3 or fewer classes based on their {} attribute.".format(
-                    self.node_class_attribute))
+                    self.node_class_attribute)) # AND A COMMENT
             node_class_names = sorted(node_class_names)
         else:
             for_deletion = []
@@ -208,15 +208,19 @@ class HivePlot():
         gradient = eval("pyx.color.gradient." + self.node_colour_gradient)
         colour = convert_colour(self.default_node_colour)
         node_positions = []
+
         for axis in self._axes.values():
             node_positions.extend(axis.nodes.values())
+
         node_position_weights = list(self._weight_by_colocation(node_positions).items())
         sorted_weights = sorted(node_position_weights, key=lambda x: x[1],
                                 reverse=self.node_superimpose_representation != "colour")
-        if self.node_superimpose_representation is "colour":
+
+        if self.node_superimpose_representation == "colour" or len({weight for _, weight in sorted_weights}) is 1:
             node_size = min(self.node_size_range)
         else:
             node_size = None
+
         for coords, weight in sorted_weights:
             if self.node_superimpose_representation is "colour":
                 this_colour = gradient.getcolor(weight)
@@ -480,7 +484,8 @@ class HivePlot():
     def _weight_by_colocation(node_positions):
         tally = Counter(node_positions)
         tally_arr = np.array(list(tally.items()), dtype="object")
-        tally_arr[:, 1] = (tally_arr[:, 1] - 1) / (np.max(tally_arr[:, 1]) - 1)
+        if np.max(tally_arr[:, 1]) is not 1:
+            tally_arr[:, 1] = (tally_arr[:, 1] - 1) / (np.max(tally_arr[:, 1]) - 1)
         return dict(tally_arr)
 
     def _setup_latex(self):
@@ -500,7 +505,7 @@ class HivePlot():
                 colour_dict[str(value)] = convert_colour(value)
 
         for colour_name, colour_obj in colour_dict.items():
-            pyx.text.preamble(r"\definecolor{%s}{cmyk}{%g,%g,%g,%g}" % (colour_name,
+            pyx.text.preamble(r"\definecolor{%s}{cmyk}{%.5f,%.5f,%.5f,%.5f}" % (colour_name,
                                                                         colour_obj.c, colour_obj.m,
                                                                         colour_obj.y, colour_obj.k))
 
