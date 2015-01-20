@@ -7,11 +7,13 @@ import copy
 from collections import Counter
 from utils.colour_utils import convert_colour
 import random as rand
-import warnings
 from utils.component_classes import Axis, Edge
 import defaults
 import PIL.Image
+import sys
+import re
 
+TEX_WARNING = r"Ignoring line \S+ in mapping file 'pdftex\.map': Unknown token '<.+'"
 
 class HivePlot():
     """
@@ -284,8 +286,7 @@ class HivePlot():
         :return: True if complete
         :rtype: bool
         """
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
+        with WarningSuppressor(TEX_WARNING):
             self.canvas.writePDFfile(path)
         return True
 
@@ -300,7 +301,8 @@ class HivePlot():
         :param ghostscript_device: Device to write with, default 'png16m'
         :type ghostscript_device: str
         """
-        img = self.as_bitmap(resolution, ghostscript_binary, ghostscript_device)
+        with WarningSuppressor(TEX_WARNING):
+            img = self.as_bitmap(resolution, ghostscript_binary, ghostscript_device)
         img.show()
 
     def as_bitmap(self, resolution=100, ghostscript_binary="gs", ghostscript_device="png16m"):
@@ -601,3 +603,31 @@ def fit_attr_to_interval(attr_dict, random=False, distribute_evenly=False, inter
         uniques = sorted(set(attr_values))
         category_to_float = dict(zip(uniques, np.linspace(interval[0], interval[1], num=len(uniques))))
         return {key: category_to_float[value] for key, value in attr_dict.items()}
+
+
+class NullErr():
+    REGEX = r"({})|(^\s$)"
+
+    def __init__(self, regex_str):
+        self.stderr = sys.stderr
+        self.regex = re.compile(NullErr.REGEX.format(regex_str))
+
+    def write(self, s):
+        if self.regex.match(s):
+            pass
+        else:
+            self.stderr.write(s)
+
+
+class WarningSuppressor():
+    def __init__(self, regex_str):
+        self.null_err = NullErr(regex_str)
+        self.std_err = sys.stderr
+
+    def __enter__(self):
+        sys.stderr = self.null_err
+        return self
+
+    def __exit__(self, *args):
+        sys.stderr = self.std_err
+
