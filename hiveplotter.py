@@ -236,11 +236,12 @@ class HivePlot():
 
     def draw(self, show=False, save_path=None):
         """
-        Draw the graph using the current settings
 
-        :param save_path: path of PDF file to save graph into
+        :param show: Whether to show plot in window (default False)
+        :type show: bool
+        :param save_path: Whether to save PDF of plot (default False)
         :type save_path: str
-        :return: True for successful completion
+        :return: Whether drawing was successful
         :rtype: bool
         """
 
@@ -571,6 +572,7 @@ def get_attr_dict(data_sequence, attr, default):
 def fit_attr_to_interval(attr_dict, random=False, distribute_evenly=False, interval=(0, 1)):
     """
     Convert an arbitrary set of attributes into a set of numerical attributes within a given range
+
     :param attr_dict: dictionary whose values are the attribute to convert
     :type attr_dict: dict
     :param random: whether to randomly assign attribute values
@@ -590,7 +592,9 @@ def fit_attr_to_interval(attr_dict, random=False, distribute_evenly=False, inter
     try:
         if distribute_evenly:
             raise AssertionError("Exception required for even distribution")
-        attr_values = (attr_values - np.min(attr_values)) / np.ptp(attr_values)  # normalise to (0,1)
+        rnge = np.ptp(attr_values)
+        rnge = rnge if rnge else 1
+        attr_values = (attr_values - np.min(attr_values)) / rnge  # normalise to (0,1)
         attr_values = attr_values * (max(interval) - min(interval)) + min(interval)
         return dict(zip(list(attr_dict), attr_values))
     except (TypeError, AssertionError):
