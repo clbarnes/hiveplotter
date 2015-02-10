@@ -1,20 +1,22 @@
-import pyx
-import networkx as nx
-import numpy as np
 from collections import OrderedDict
-from geom_utils import get_projection, place_point_proportion_along_line, mid_line
 import copy
 from collections import Counter
-from colour_utils import convert_colour
 import random as rand
 import warnings
-from component_classes import Axis, Edge
+
+import pyx
+
+import networkx as nx
+import numpy as np
+from utils.geom_utils import get_projection, place_point_proportion_along_line, mid_line
+from utils.colour_utils import convert_colour
+from utils.component_classes import Axis, Edge
 import defaults
+
 try:
     import PIL
-    PIL_imported = True
 except ImportError:
-    PIL_imported = False
+    pass
 
 
 class HivePlot():
@@ -262,7 +264,7 @@ class HivePlot():
         return True
 
     def show_plot(self, ghostscript_binary="gs", ghostscript_device="png16m"):
-        if PIL_imported:
+        if PIL:
             img_bytes = self.canvas.pipeGS(ghostscript_device, gs=ghostscript_binary)
             img = PIL.Image.open(img_bytes)
             img.show()
