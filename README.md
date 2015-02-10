@@ -2,11 +2,12 @@
 hiveplotter
 ===========
 
-A python library for creating [hive plots](http://www.hiveplot.net/) from [NetworkX](https://networkx.github.io/) graphs.
+A python library for creating highly customisable [hive plots](http://www.hiveplot.net/) from [NetworkX](https://networkx.github.io/) graphs.
+
+This project is released under the [BSD License](https://raw.githubusercontent.com/clbarnes/hiveplotter/master/LICENSE).
 
 WIP
 
 Requires:
- - LaTeX (probably)
- - Dependencies specified in the setup.py
- - Maybe some other stuff (I have no idea what I'm doing)
+ - LaTeX
+ - Dependencies in setup.py: shapely, numpy, networkx, pyx, numpy, PIL

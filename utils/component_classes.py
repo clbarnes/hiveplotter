@@ -1,9 +1,8 @@
-import pyx
-from pyx.metapost.path import beginknot, endknot, smoothknot, tensioncurve
-
 from shapely import geometry as geom
 import numpy as np
-from utils import geom_utils
+import pyx
+import geom_utils
+from pyx.metapost.path import beginknot, endknot, smoothknot, tensioncurve
 
 
 class Axis():
@@ -59,7 +58,8 @@ class Edge():
 
         intersection = mid_ax_line.intersection(geom.LineString(coordinates=[self.start_point, self.end_point]))
         if not curved:
-            return intersection
+            #return intersection.coords
+            raise NotImplementedError("Controlling edge curvature is not yet implemented.")
         intersection_proportion = np.linalg.norm(np.array(intersection)-np.array(mid_ax_line.coords[0])) / mid_ax_line.length
         return geom_utils.place_point_proportion_along_line(mid_ax_line, intersection_proportion * start_axis.line.length/mid_ax_line.length)
 

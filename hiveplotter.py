@@ -1,23 +1,19 @@
-from collections import OrderedDict
-import copy
-from collections import Counter
-import random as rand
-import warnings
-
 import pyx
-
 import networkx as nx
 import numpy as np
+from collections import OrderedDict
 from utils.geom_utils import get_projection, place_point_proportion_along_line, mid_line
+import copy
+from collections import Counter
 from utils.colour_utils import convert_colour
+import random as rand
 from utils.component_classes import Axis, Edge
 import defaults
+import PIL.Image
+import sys
+import re
 
-try:
-    import PIL
-except ImportError:
-    pass
-
+TEX_WARNING = r"Ignoring line \S+ in mapping file 'pdftex\.map': Unknown token '<.+'"
 
 class HivePlot():
     """
@@ -73,6 +69,7 @@ class HivePlot():
         self.edge_thickness_range = defaults.edge_thickness_range
         self.edge_colour_attribute = defaults.edge_colour_attribute
         self.edge_colour_gradient = defaults.edge_colour_gradient
+        self.edge_category_legend = defaults.edge_category_legend
         self.edge_category_colours = defaults.edge_category_colours
         self.curved_edges = defaults.curved_edges
         self.normalise_edge_colours = defaults.normalise_edge_colours
@@ -93,6 +90,7 @@ class HivePlot():
     def _split_nodes(self, node_class_names):
         """
         Split nodes based on the attribute specified in self.node_class_attribute
+
         :param node_class_names: Values of node_class_attribute which will be included in the plot (in clockwise order)
         :type node_class_names: list
         :return: A dictionary whose keys are the node class attribute values, and values are lists of nodes belonging to that class
@@ -105,7 +103,7 @@ class HivePlot():
             valid_node_set = set(node_attribute_dict)
 
         if node_class_names is None:
-            node_class_names = list(node_attribute_dict.values())
+            node_class_names = set(node_attribute_dict.values())
             if len(node_class_names) > 3:
                 raise ValueError("Nodes should be in 3 or fewer classes based on their {} attribute.".format(
                     self.node_class_attribute))
@@ -140,6 +138,7 @@ class HivePlot():
     def _draw_background(self):
         """
         Draw the background of the plot slightly larger than everything in the foreground.
+
         :return: None
         :rtype: None
         """
@@ -150,6 +149,7 @@ class HivePlot():
     def _get_bbox(self, extend=1.1):
         """
         Get the extents of the canvas.
+
         :param extend: the proportion of the extent which should be added to the size of the bounding box
         :type extend: float or int
         :return: extents of bounding box- (minX, minY, maxX, maxY)
@@ -172,15 +172,35 @@ class HivePlot():
 
         for axis in self._axes.values():
             label_position = place_point_proportion_along_line(axis, 1 + self.label_spacing)
-            txt_str = self._colour_text(self._size_text(axis.label, self.label_size), self.label_colour)
+            text_str = self._colour_text(self._size_text(axis.label, self.label_size), self.label_colour)
 
-            self._foreground_layer.text(label_position[0], label_position[1], txt_str, text_alignment)
+            self._foreground_layer.text(label_position[0], label_position[1], text_str, text_alignment)
 
     def _size_text(self, text, size):
-        return r"{\fontsize{" + str(size) + r"}{" + str(round(size * 1.2)) + r"}\selectfont " + text + r"}"
+        """
+        Wrap a string in TeX tags to define its size
+
+        :param text: Text to be sized
+        :type text: str
+        :param size: Point size for text
+        :type size: int
+        :return: TeX string for text of a the given size
+        :rtype: str
+        """
+        return r"{\fontsize{" + str(size) + r"}{" + str(round(size * 1.2)) + r"}\selectfont " + str(text) + r"}"
 
     def _colour_text(self, text, colour):
-        return r"\textcolor{" + str(colour) + "}{" + text + "}"
+        """
+        Wrap a string in TeX tags to define its colour
+
+        :param text: Text to be coloured
+        :type text: str
+        :param colour: String identifying a colour as defined in self._define_colours()
+        :type colour: int
+        :return: TeX string for text of a the given colour
+        :rtype: str
+        """
+        return r"\textcolor{" + str(colour) + "}{" + str(text) + "}"
 
     def _draw_edges(self, edges):
         for edge in edges:
@@ -190,15 +210,19 @@ class HivePlot():
         gradient = eval("pyx.color.gradient." + self.node_colour_gradient)
         colour = convert_colour(self.default_node_colour)
         node_positions = []
+
         for axis in self._axes.values():
             node_positions.extend(axis.nodes.values())
+
         node_position_weights = list(self._weight_by_colocation(node_positions).items())
         sorted_weights = sorted(node_position_weights, key=lambda x: x[1],
                                 reverse=self.node_superimpose_representation != "colour")
-        if self.node_superimpose_representation is "colour":
+
+        if self.node_superimpose_representation == "colour" or len({weight for _, weight in sorted_weights}) is 1:
             node_size = min(self.node_size_range)
         else:
             node_size = None
+
         for coords, weight in sorted_weights:
             if self.node_superimpose_representation is "colour":
                 this_colour = gradient.getcolor(weight)
@@ -214,10 +238,12 @@ class HivePlot():
 
     def draw(self, show=False, save_path=None):
         """
-        Draw the graph using the current settings
-        :param save_path: path of PDF file to save graph into
+
+        :param show: Whether to show plot in window (default False)
+        :type show: bool
+        :param save_path: Whether to save PDF of plot (default False)
         :type save_path: str
-        :return: True for successful completion
+        :return: Whether drawing was successful
         :rtype: bool
         """
 
@@ -253,28 +279,54 @@ class HivePlot():
 
     def save_plot(self, path):
         """
+        Save the plot as a vector-drawn PDF
+
         :param path: Save path
         :type path: str
         :return: True if complete
         :rtype: bool
         """
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
+        with WarningSuppressor(TEX_WARNING):
             self.canvas.writePDFfile(path)
         return True
 
-    def show_plot(self, ghostscript_binary="gs", ghostscript_device="png16m"):
-        if PIL:
-            img_bytes = self.canvas.pipeGS(ghostscript_device, gs=ghostscript_binary)
-            img = PIL.Image.open(img_bytes)
-            img.show()
-        else:
-            raise ImportError("PIL could not be imported. Save plot and view as PDF.")
+    def show_plot(self, resolution=100, ghostscript_binary="gs", ghostscript_device="png16m"):
+        """
+        Show the plot. Requires ghostscript.
+
+        :param resolution: Resolution of plot in DPI (default 100)
+        :type resolution: int
+        :param ghostscript_binary: Path to ghostscript binary on local system (default 'gs')
+        :type ghostscript_binary: str
+        :param ghostscript_device: Device to write with, default 'png16m'
+        :type ghostscript_device: str
+        """
+        with WarningSuppressor(TEX_WARNING):
+            img = self.as_bitmap(resolution, ghostscript_binary, ghostscript_device)
+        img.show()
+
+    def as_bitmap(self, resolution=100, ghostscript_binary="gs", ghostscript_device="png16m"):
+        """
+        Return a bitmap version of the plot.
+
+        :param resolution: Resolution of plot in DPI (default 100)
+        :type resolution: int
+        :param ghostscript_binary: Path to ghostscript binary on local system (default 'gs')
+        :type ghostscript_binary: str
+        :param ghostscript_device: Device to write with, default 'png16m'
+        :type ghostscript_device: str
+        :return: Bitmap image of the plot.
+        :rtype: PIL.Image
+        """
+        img_bytes = self.canvas.pipeGS(ghostscript_device, resolution=resolution, gs=ghostscript_binary)
+        img = PIL.Image.open(img_bytes)
+        return img
 
     def _create_axes(self):
         """
         Generate axes on which to plot nodes. Copies parent hiveplot's axes if they exist.
-        :return: A dictionary whose keys are the node class attribute values, and values are Axis objects
+
+        :return: A dictionary from node class attribute values to Axis objects
         :rtype: dict
         """
 
@@ -291,26 +343,30 @@ class HivePlot():
         for node_class in self.node_classes:
             if node_class in self.split_axes:
                 ccw_angle = angle - self.split_angle / 2
-                axes[node_class + "_ccw"] = self._create_axis(ccw_angle, label=node_class)
+                axes[node_class + "_ccw"] = self._create_axis(ccw_angle,
+                                                              label=node_class, thickness=self.axis_thickness/2)
                 cw_angle = angle + self.split_angle / 2
-                axes[node_class + "_cw"] = self._create_axis(cw_angle, label=node_class)
+                axes[node_class + "_cw"] = self._create_axis(cw_angle,
+                                                             label=node_class, thickness=self.axis_thickness/2)
             else:
-                new_axis = self._create_axis(angle, label=node_class)
-                axes[node_class] = new_axis
+                axes[node_class] = self._create_axis(angle, label=node_class)
             angle += angle_spacing
 
         return axes
 
-    def _create_axis(self, angle, label=""):
+    def _create_axis(self, angle, label="", thickness=None):
+        if thickness is None:
+            thickness = self.axis_thickness
         ax_start = get_projection((0, 0), angle, self.proportional_offset_from_intersection * self.axis_length)
         ax_stop = get_projection(ax_start, angle, self.axis_length)
         new_axis = Axis(ax_start, ax_stop)
-        new_axis.set_visual_properties(convert_colour(self.axis_colour), self.axis_thickness, label=label)
+        new_axis.set_visual_properties(convert_colour(self.axis_colour), thickness, label=label)
         return new_axis
 
     def _place_nodes(self):
         """
         Places nodes on Axis objects. Does nothing if axes already have nodes.
+
         :param axes: A dictionary whose keys are the node class attribute values, and values are component_classes.Axis objects of the axis those nodes will be plotted on
         :type axes: dict
         """
@@ -333,6 +389,7 @@ class HivePlot():
     def _order_nodes(self):
         """
         Order nodes by an arbitrary attribute.
+
         :return: A dictionary whose keys are nodes, and values are proportions up their respective axes at which the nodes should be placed
         """
         working_nodes = self._get_working_nodes()
@@ -430,7 +487,8 @@ class HivePlot():
     def _weight_by_colocation(node_positions):
         tally = Counter(node_positions)
         tally_arr = np.array(list(tally.items()), dtype="object")
-        tally_arr[:, 1] = (tally_arr[:, 1] - 1) / (np.max(tally_arr[:, 1]) - 1)
+        if np.max(tally_arr[:, 1]) is not 1:
+            tally_arr[:, 1] = (tally_arr[:, 1] - 1) / (np.max(tally_arr[:, 1]) - 1)
         return dict(tally_arr)
 
     def _setup_latex(self):
@@ -450,12 +508,12 @@ class HivePlot():
                 colour_dict[str(value)] = convert_colour(value)
 
         for colour_name, colour_obj in colour_dict.items():
-            pyx.text.preamble(r"\definecolor{%s}{cmyk}{%g,%g,%g,%g}" % (colour_name,
+            pyx.text.preamble(r"\definecolor{%s}{cmyk}{%.5f,%.5f,%.5f,%.5f}" % (colour_name,
                                                                         colour_obj.c, colour_obj.m,
                                                                         colour_obj.y, colour_obj.k))
 
     def _draw_legend(self):
-        if not self.edge_category_colours:
+        if not self.edge_category_legend or not self.edge_category_colours:
             return
 
         legend_items = []
@@ -516,6 +574,7 @@ def get_attr_dict(data_sequence, attr, default):
 def fit_attr_to_interval(attr_dict, random=False, distribute_evenly=False, interval=(0, 1)):
     """
     Convert an arbitrary set of attributes into a set of numerical attributes within a given range
+
     :param attr_dict: dictionary whose values are the attribute to convert
     :type attr_dict: dict
     :param random: whether to randomly assign attribute values
@@ -535,10 +594,40 @@ def fit_attr_to_interval(attr_dict, random=False, distribute_evenly=False, inter
     try:
         if distribute_evenly:
             raise AssertionError("Exception required for even distribution")
-        attr_values = (attr_values - np.min(attr_values)) / np.ptp(attr_values)  # normalise to (0,1)
+        rnge = np.ptp(attr_values)
+        rnge = rnge if rnge else 1
+        attr_values = (attr_values - np.min(attr_values)) / rnge  # normalise to (0,1)
         attr_values = attr_values * (max(interval) - min(interval)) + min(interval)
         return dict(zip(list(attr_dict), attr_values))
     except (TypeError, AssertionError):
         uniques = sorted(set(attr_values))
         category_to_float = dict(zip(uniques, np.linspace(interval[0], interval[1], num=len(uniques))))
         return {key: category_to_float[value] for key, value in attr_dict.items()}
+
+
+class NullErr():
+    REGEX = r"({})|(^\s$)"
+
+    def __init__(self, regex_str):
+        self.stderr = sys.stderr
+        self.regex = re.compile(NullErr.REGEX.format(regex_str))
+
+    def write(self, s):
+        if self.regex.match(s):
+            pass
+        else:
+            self.stderr.write(s)
+
+
+class WarningSuppressor():
+    def __init__(self, regex_str):
+        self.null_err = NullErr(regex_str)
+        self.std_err = sys.stderr
+
+    def __enter__(self):
+        sys.stderr = self.null_err
+        return self
+
+    def __exit__(self, *args):
+        sys.stderr = self.std_err
+
