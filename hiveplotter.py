@@ -8,7 +8,7 @@ from collections import Counter
 from utils.colour_utils import convert_colour
 import random as rand
 from utils.component_classes import Axis, Edge
-import defaults
+from utils.get_defaults import Defaults
 import PIL.Image
 import sys
 import re
@@ -20,7 +20,7 @@ class HivePlot():
     A class wrapping a networkx graph which can be used to generate highly customisable hive plots.
     """
 
-    def __init__(self, network, node_class_attribute="type", node_class_values=None, **kwargs):
+    def __init__(self, network, config_path=None, node_class_attribute="type", node_class_values=None, **kwargs):
         """
         :param network: network to be plotted
         :type network: nx.Graph
@@ -38,6 +38,8 @@ class HivePlot():
 
         # setup parameters
         self.parent_hiveplot = None
+
+        defaults = Defaults(config_path)
 
         # background parameters
         self.background_proportion = defaults.background_proportion
@@ -393,7 +395,7 @@ class HivePlot():
         :return: A dictionary whose keys are nodes, and values are proportions up their respective axes at which the nodes should be placed
         """
         working_nodes = self._get_working_nodes()
-        if self.order_nodes_by is "degree":
+        if self.order_nodes_by == "degree":
             node_attrs = nx.degree(self.network, nbunch=working_nodes)
         else:
             node_attrs = {node[0]: node[1][self.order_nodes_by]
