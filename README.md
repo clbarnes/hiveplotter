@@ -18,3 +18,5 @@ See hiveplotter/examples for usage.
 Default behaviour can be found in hiveplotter_defaults.ini
 Default behaviour can be overridden with keyword arguments in the HivePlot constructor, or by pointing to an alternative config file (kwarg config_path).
 Most behaviour can be can be changed between instantiation of the hive plot and drawing.
+
+To get your graph into the NetworkX format, check out [their documentation](http://networkx.github.io/documentation/latest/reference/readwrite.html). Nodes need to have some attribute which divides them into the 3 classes determining which axis they go on (default is 'type'), and edges can have a 'weight' to determine their thickness, as well as other attributes which can determine their colour. 
