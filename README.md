@@ -9,11 +9,12 @@ This project is released under the [BSD License](https://raw.githubusercontent.c
 WIP
 
 Requires:
- - LaTeX
+ - LaTeX (for labels)
+ - Ghostscript (for displaying plot as a bitmap)
  - Dependencies as listed in setup.py: shapely, networkx, pyx, numpy, PIL
  
 See hiveplotter/examples for usage.
 
 Default behaviour can be found in hiveplotter_defaults.ini
-Default behaviour can be overridden with kwargs or by pointing to an alternative config file.
-Behaviour can be changed between instantiation of the hive plot and drawing.
+Default behaviour can be overridden with keyword arguments in the HivePlot constructor, or by pointing to an alternative config file (kwarg config_path).
+Most behaviour can be can be changed between instantiation of the hive plot and drawing.
