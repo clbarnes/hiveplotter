@@ -13,7 +13,7 @@ import PIL.Image
 import sys
 import re
 
-TEX_WARNING = r"Ignoring line \S+ in mapping file 'pdftex\.map': Unknown token '<.+'"
+TEX_WARNING = r"Ignoring line \S+ in mapping file '.+\.map': Unknown token '<.+'"
 
 class HivePlot():
     """
