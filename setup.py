@@ -1,10 +1,12 @@
 from distutils.core import setup
+import sys
 
 setup(
     name='hiveplotter',
     version='0.1',
-    packages=[],
+    packages=['hiveplotter_utils'],
     py_modules=['hiveplotter'],
+    data_files=[(sys.prefix, ['hiveplotter_defaults.ini'])],
     url='https://github.com/clbarnes/hiveplotter',
     license='BSD',
     author='clbarnes',

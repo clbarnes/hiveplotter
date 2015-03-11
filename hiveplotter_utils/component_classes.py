@@ -13,7 +13,13 @@ class Axis():
         self.thickness = None
         self.label = None
 
-    def add_nodes(self, nodes_proportions):
+    def add_nodes(self, nodes_proportions, spread=False):
+        if spread:
+            keys, values = zip(*nodes_proportions.items())
+            mini = min(values)
+            ptp = max(values) - mini
+            normalised_values = ((val - mini)/ptp for val in values)
+            nodes_proportions = dict(zip(keys, normalised_values))
         for node in nodes_proportions:
             self.nodes[node] = geom_utils.place_point_proportion_along_line(self.line, nodes_proportions[node])
 

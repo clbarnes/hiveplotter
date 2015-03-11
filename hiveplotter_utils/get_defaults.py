@@ -1,14 +1,13 @@
 from configparser import ConfigParser
 import os
+import sys
 import json
 
-CONF_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'hiveplotter_defaults.ini')
+CONF_PATH = os.path.join(sys.prefix, 'hiveplotter_defaults.ini')
 
 
 class Defaults():
     def __init__(self, config_path):
-        if config_path is None:
-            config_path = CONF_PATH
         cp = ConfigParser()
         cp.read(CONF_PATH)
         for section in cp.sections():

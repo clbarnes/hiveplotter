@@ -2,13 +2,13 @@ import pyx
 import networkx as nx
 import numpy as np
 from collections import OrderedDict
-from utils.geom_utils import get_projection, place_point_proportion_along_line, mid_line
+from hiveplotter_utils.geom_utils import get_projection, place_point_proportion_along_line, mid_line
 import copy
 from collections import Counter
-from utils.colour_utils import convert_colour
+from hiveplotter_utils.colour_utils import convert_colour
 import random as rand
-from utils.component_classes import Axis, Edge
-from utils.get_defaults import Defaults
+from hiveplotter_utils.component_classes import Axis, Edge
+from hiveplotter_utils.get_defaults import Defaults
 import PIL.Image
 import sys
 import re
@@ -66,6 +66,7 @@ class HivePlot():
         self.node_size_range = defaults.node_size_range
         self.node_colour_gradient = defaults.node_colour_gradient
         self.default_node_colour = defaults.default_node_colour
+        self.spread_nodes = defaults.spread_nodes
 
         # edge parameters
         self.edge_thickness_range = defaults.edge_thickness_range
@@ -386,7 +387,7 @@ class HivePlot():
 
     def _add_node_to_axis_if_empty(self, axis_key, nodes):
         if len(self._axes[axis_key].nodes) is 0:
-            self._axes[axis_key].add_nodes(nodes)
+            self._axes[axis_key].add_nodes(nodes, self.spread_nodes)
 
     def _order_nodes(self):
         """
