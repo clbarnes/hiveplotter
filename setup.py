@@ -1,12 +1,16 @@
 from distutils.core import setup
-import sys
+import shutil
+import site
+import os
+
+CONF_PATH = os.path.join(site.getsitepackages()[0], 'hiveplotter_defaults.ini')
+shutil.copy('hiveplotter_defaults.ini', CONF_PATH)
 
 setup(
     name='hiveplotter',
     version='0.1',
     packages=['hiveplotter_utils'],
     py_modules=['hiveplotter'],
-    data_files=[(sys.prefix, ['hiveplotter_defaults.ini'])],
     url='https://github.com/clbarnes/hiveplotter',
     license='BSD',
     author='clbarnes',
