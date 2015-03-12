@@ -1,17 +1,20 @@
+from collections import OrderedDict
+import copy
+from collections import Counter
+import random as rand
+import sys
+import re
+
 import pyx
 import networkx as nx
 import numpy as np
-from collections import OrderedDict
-from hiveplotter_utils.geom_utils import get_projection, place_point_proportion_along_line, mid_line
-import copy
-from collections import Counter
-from hiveplotter_utils.colour_utils import convert_colour
-import random as rand
-from hiveplotter_utils.component_classes import Axis, Edge
-from hiveplotter_utils.get_defaults import Defaults
 import PIL.Image
-import sys
-import re
+
+from hiveplotter.util.geom_utils import get_projection, place_point_proportion_along_line, mid_line
+from hiveplotter.util.colour_utils import convert_colour
+from hiveplotter.util.component_classes import Axis, Edge
+from hiveplotter.util.get_defaults import Defaults
+
 
 TEX_WARNING = r"Ignoring line \S+ in mapping file '.+\.map': Unknown token '<.+'"
 

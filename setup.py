@@ -9,8 +9,7 @@ shutil.copy('hiveplotter_defaults.ini', CONF_PATH)
 setup(
     name='hiveplotter',
     version='0.1',
-    packages=['hiveplotter_utils'],
-    py_modules=['hiveplotter'],
+    packages=['hiveplotter', 'hiveplotter.util'],
     url='https://github.com/clbarnes/hiveplotter',
     license='BSD',
     author='clbarnes',

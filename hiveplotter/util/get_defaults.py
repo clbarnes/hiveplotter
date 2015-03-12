@@ -1,6 +1,5 @@
 from configparser import ConfigParser
 import os
-import sys
 import json
 import site
 
