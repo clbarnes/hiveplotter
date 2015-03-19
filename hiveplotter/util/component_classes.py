@@ -57,6 +57,7 @@ class Edge():
         self.mid_point = self._make_midpoint(start_axis, end_axis, curved, mid_ax_line)
         self.colour = None
         self.thickness = None
+        self.alpha = None
 
     def _make_midpoint(self, start_axis, end_axis, curved, mid_ax_line):
         if mid_ax_line is None:
@@ -77,9 +78,10 @@ class Edge():
     def nodes(self):
         return self.start_node, self.end_node
 
-    def set_visual_properties(self, colour, thickness):
+    def set_visual_properties(self, colour, thickness, alpha=1):
         self.colour = colour
         self.thickness = thickness
+        self.alpha = alpha
 
     def draw(self, canvas):
         edgepath = pyx.metapost.path.path([
@@ -88,4 +90,5 @@ class Edge():
             endknot(*self.end_point)
         ])
 
-        canvas.stroke(edgepath, [pyx.style.linewidth(self.thickness), self.colour])
+        canvas.stroke(edgepath,
+                      [pyx.style.linewidth(self.thickness), self.colour, pyx.color.transparency(1-self.alpha)])

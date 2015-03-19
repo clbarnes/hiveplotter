@@ -80,6 +80,7 @@ class HivePlot():
         self.curved_edges = defaults.curved_edges
         self.normalise_edge_colours = defaults.normalise_edge_colours
         self.default_edge_colour = defaults.default_edge_colour
+        self.edge_alpha = defaults.edge_alpha
 
         self.__dict__.update(kwargs)
 
@@ -452,8 +453,6 @@ class HivePlot():
 
     def _create_edge_info(self):
         """
-        :param node_positions: dictionary whose keys are nodes and values are (x,y) coordinate tuples
-        :type node_positions: dict
         :return: list of dictionaries with attributes about the edge (start coord, end coord, thickness, colour, mid point)
         :rtype: list
         """
@@ -484,13 +483,21 @@ class HivePlot():
                 else:
                     continue
 
-                new_edge.set_visual_properties(edge_colour_values[edge[:2]], edge_thickness_values[edge[:2]])
+                new_edge.set_visual_properties(edge_colour_values[edge[:2]], edge_thickness_values[edge[:2]], self.edge_alpha)
                 plot_edges.append(new_edge)
 
         return plot_edges
 
     @staticmethod
     def _weight_by_colocation(node_positions):
+        """
+        Convert list of node locations to a dictionary of node locations and the weight of the representation of the node at that point.
+
+        :param node_positions: Coordinates of nodes
+        :type node_positions: list
+        :return: Dictionary from node coordinates to weight of node
+        :rtype: dict
+        """
         tally = Counter(node_positions)
         tally_arr = np.array(list(tally.items()), dtype="object")
         if np.max(tally_arr[:, 1]) is not 1:
@@ -498,6 +505,11 @@ class HivePlot():
         return dict(tally_arr)
 
     def _setup_latex(self):
+        """
+        Write LaTeX preamble, including setting up colours and fonts.
+
+        :return: None
+        """
         pyx.text.set(pyx.text.LatexRunner)
         pyx.text.preamble(r"\usepackage{color}")
         pyx.text.preamble(r"\usepackage[T1]{fontenc}")
@@ -505,6 +517,11 @@ class HivePlot():
         self._define_colours()
 
     def _define_colours(self):
+        """
+        Interpret colours of labels, background, axes and edges as pyx.color objects and define them in CMYK in the LaTeX preamble.
+
+        :return: None
+        """
         colour_dict = {self.label_colour: convert_colour(self.label_colour),
              self.background_colour: convert_colour(self.background_colour),
              self.axis_colour: convert_colour(self.axis_colour)}
@@ -550,6 +567,7 @@ class HivePlot():
 def map_to_interval(num_range, proportion):
     """
     Return the number a certain proportion of the way along a number line between given values
+
     :param num_range: range in which to place value
     :type num_range: tuple
     :param proportion: proportion along range at which to place value
@@ -563,8 +581,10 @@ def map_to_interval(num_range, proportion):
     return mini + proportion * rng
 
 
-def get_attr_dict(data_sequence, attr, default):
+def get_attr_dict(data_sequence, attr, default=None):
     """
+    Return a dictionary of edges or nodes and one of their attributes, given the entire data sequence.
+
     :param data_sequence: sequence of edges or nodes and their attributes
     :type data_sequence: list
     :param attr: name of attribute to select
