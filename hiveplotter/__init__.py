@@ -543,7 +543,7 @@ class HivePlot():
         legend_items = []
         for category in self.edge_category_colours:
             legend_items.append(self._size_text(
-                "%s %s" % (self._colour_text("\textbf{---} ", self.edge_category_colours[category]),
+                "%s %s" % (self._colour_text(r"\textbf{---} ", self.edge_category_colours[category]),
                            self._colour_text(category, self.label_colour)), self.label_size)
             )
 
