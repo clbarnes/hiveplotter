@@ -16,7 +16,8 @@ from hiveplotter.util.component_classes import Axis, Edge
 from hiveplotter.util.get_defaults import Defaults
 
 
-TEX_WARNING = r"Ignoring line \S+ in mapping file '.+\.map': Unknown token '<.+'"
+TEX_WARNINGS = ["Transparency not available in PostScript, proprietary ghostscript extension code inserted.",
+                r"Ignoring line \S+ in mapping file '.+\.map': Unknown token '<.+'"]
 
 class HivePlot():
     """
@@ -293,7 +294,7 @@ class HivePlot():
         :return: True if complete
         :rtype: bool
         """
-        with WarningSuppressor(TEX_WARNING):
+        with WarningSuppressor(TEX_WARNINGS):
             self.canvas.writePDFfile(path)
         return True
 
@@ -308,7 +309,7 @@ class HivePlot():
         :param ghostscript_device: Device to write with, default 'png16m'
         :type ghostscript_device: str
         """
-        with WarningSuppressor(TEX_WARNING):
+        with WarningSuppressor(TEX_WARNINGS):
             img = self.as_bitmap(resolution, ghostscript_binary, ghostscript_device)
         img.show()
 
@@ -632,11 +633,12 @@ def fit_attr_to_interval(attr_dict, random=False, distribute_evenly=False, inter
 
 
 class NullErr():
-    REGEX = r"({})|(^\s$)"
+    REGEX = r"(^\s$)"
 
-    def __init__(self, regex_str):
+    def __init__(self, *regex_strs):
+        regex_str = '|'.join(['({})'.format(r) for r in regex_strs] + [NullErr.REGEX])
         self.stderr = sys.stderr
-        self.regex = re.compile(NullErr.REGEX.format(regex_str))
+        self.regex = re.compile(regex_str)
 
     def write(self, s):
         if self.regex.match(s):
