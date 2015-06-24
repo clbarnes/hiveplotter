@@ -4,6 +4,7 @@ from collections import Counter
 import random as rand
 import sys
 import re
+import os
 
 import pyx
 import networkx as nx
@@ -41,7 +42,7 @@ class HivePlot():
         # define default behaviour, which can be overridden with kwargs
 
         # setup parameters
-        self.parent_hiveplot = None
+        self.parent_hiveplot = kwargs.get('parent_hiveplot', None)
 
         defaults = Defaults(config_path)
 
@@ -294,6 +295,9 @@ class HivePlot():
         :return: True if complete
         :rtype: bool
         """
+
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
         with WarningSuppressor(TEX_WARNINGS):
             self.canvas.writePDFfile(path)
         return True
