@@ -1,0 +1,5 @@
+shapely
+networkx
+pyx
+numpy
+PIL
