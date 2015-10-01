@@ -11,7 +11,7 @@ WIP
 Requires:
  - LaTeX (for labels)
  - Ghostscript (for displaying plot as a bitmap)
- - Dependencies as listed in setup.py: shapely, networkx, pyx, numpy, PIL
+ - Python dependencies as listed in requirements.txt: shapely, networkx, pyx, numpy, PIL
  
 See hiveplotter/examples for usage.
 
