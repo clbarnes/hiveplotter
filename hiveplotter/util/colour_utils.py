@@ -31,6 +31,17 @@ def convert_colour(inp):
         return pyx.color.gray(0.5).cmyk()
 
 
+def hashable_colour(col):
+    try:
+        hash(col)
+        return col
+    except TypeError as e:
+        if 'unhashable' in str(e):
+            return tuple(col)
+
+
+
+
 def categories_to_float(categories):
     """
     Converts a set of categories into a set of floats for use with colour gradients

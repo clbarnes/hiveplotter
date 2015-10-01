@@ -12,7 +12,7 @@ import numpy as np
 import PIL.Image
 
 from hiveplotter.util.geom_utils import get_projection, place_point_proportion_along_line, mid_line
-from hiveplotter.util.colour_utils import convert_colour
+from hiveplotter.util.colour_utils import convert_colour, hashable_colour
 from hiveplotter.util.component_classes import Axis, Edge
 from hiveplotter.util.get_defaults import Defaults
 
@@ -25,7 +25,7 @@ class HivePlot():
     A class wrapping a networkx graph which can be used to generate highly customisable hive plots.
     """
 
-    def __init__(self, network, config_path=None, node_class_attribute="type", node_class_values=None, **kwargs):
+    def __init__(self, network, config_path=None, node_class_attribute=None, node_class_values=None, **kwargs):
         """
         :param network: network to be plotted
         :type network: nx.Graph
@@ -37,7 +37,6 @@ class HivePlot():
         :type kwargs: dict
         """
         self.network = network
-        self.node_class_attribute = node_class_attribute
 
         # define default behaviour, which can be overridden with kwargs
 
@@ -48,7 +47,7 @@ class HivePlot():
 
         # background parameters
         self.background_proportion = defaults.background_proportion
-        self.background_colour = defaults.background_colour
+        self.background_colour = hashable_colour(defaults.background_colour)
 
         # axis parameters
         self.axis_length = defaults.axis_length
@@ -56,21 +55,22 @@ class HivePlot():
         self.split_axes = defaults.split_axes
         self.split_angle = defaults.split_angle
         self.normalise_axis_length = defaults.normalise_axis_length
-        self.axis_colour = defaults.axis_colour
+        self.axis_colour = hashable_colour(defaults.axis_colour)
         self.axis_thickness = defaults.axis_thickness
         self.order_nodes_by = defaults.order_nodes_by
 
         # axis label parameters
-        self.label_colour = defaults.label_colour
+        self.label_colour = hashable_colour(defaults.label_colour)
         self.label_size = defaults.label_size
         self.label_spacing = defaults.label_spacing
 
         # node parameters
+        self.node_class_attribute = node_class_attribute if node_class_attribute else defaults.node_class_attribute
         self.normalise_node_distribution = defaults.normalise_node_distribution
         self.node_superimpose_representation = defaults.node_superimpose_representation
         self.node_size_range = defaults.node_size_range
         self.node_colour_gradient = defaults.node_colour_gradient
-        self.default_node_colour = defaults.default_node_colour
+        self.default_node_colour = hashable_colour(defaults.default_node_colour)
         self.spread_nodes = defaults.spread_nodes
 
         # edge parameters
@@ -78,15 +78,19 @@ class HivePlot():
         self.edge_colour_attribute = defaults.edge_colour_attribute
         self.edge_colour_gradient = defaults.edge_colour_gradient
         self.edge_category_legend = defaults.edge_category_legend
-        self.edge_category_colours = defaults.edge_category_colours
+        self.edge_category_colours = {
+            key: hashable_colour(val) for key, val in defaults.edge_category_colours.items()
+        } if defaults.edge_category_colours else None
         self.curved_edges = defaults.curved_edges
         self.normalise_edge_colours = defaults.normalise_edge_colours
-        self.default_edge_colour = defaults.default_edge_colour
+        self.default_edge_colour = hashable_colour(defaults.default_edge_colour)
         self.edge_alpha = defaults.edge_alpha
 
         self.__dict__.update(kwargs)
 
         # fields to be filled by the object
+        if not node_class_values:
+            node_class_values = defaults.node_class_values
         self.node_classes = self._split_nodes(node_class_values)
         self.colour_definitions = self._convert_colours()
         self.canvas = None
@@ -252,8 +256,8 @@ class HivePlot():
         :type show: bool
         :param save_path: Whether to save PDF of plot (default False)
         :type save_path: str
-        :return: Whether drawing was successful
-        :rtype: bool
+        :return: The processed hiveplot
+        :rtype: HivePlot
         """
 
         self._axes = self._create_axes()
@@ -284,7 +288,7 @@ class HivePlot():
         if show:
             self.show_plot()
 
-        return True
+        return self
 
     def save_plot(self, path):
         """
@@ -299,7 +303,10 @@ class HivePlot():
         os.makedirs(os.path.dirname(path), exist_ok=True)
 
         with WarningSuppressor(TEX_WARNINGS):
-            self.canvas.writePDFfile(path)
+            if path.endswith('.pdf'):
+                self.canvas.writePDFfile(path)
+            else:
+                self.canvas.writeSVGfile(path)
         return True
 
     def show_plot(self, resolution=100, ghostscript_binary="gs", ghostscript_device="png16m"):
@@ -662,4 +669,3 @@ class WarningSuppressor():
 
     def __exit__(self, *args):
         sys.stderr = self.std_err
-
