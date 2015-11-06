@@ -1,7 +1,7 @@
 from shapely import geometry as geom
 import numpy as np
 import pyx
-import geom_utils
+from . import geom_utils
 from pyx.metapost.path import beginknot, endknot, smoothknot, tensioncurve
 
 

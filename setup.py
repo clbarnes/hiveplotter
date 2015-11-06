@@ -1,10 +1,4 @@
 from distutils.core import setup
-import shutil
-import site
-import os
-
-# CONF_PATH = os.path.join(site.getsitepackages()[0], 'hiveplotter_defaults.ini')
-# shutil.copy('hiveplotter_defaults.ini', CONF_PATH)
 
 setup(
     name='hiveplotter',
@@ -15,5 +9,5 @@ setup(
     author='clbarnes',
     author_email='cbarnes@mrc-lmb.cam.ac.uk',
     description='A python library for creating hive plots from networkx graphs',
-    requires=['shapely', 'networkx', 'pyx', 'numpy', 'PIL']
+    requires=['shapely', 'networkx', 'pyx', 'numpy', 'pillow']
 )
