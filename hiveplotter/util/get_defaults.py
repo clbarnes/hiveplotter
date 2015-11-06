@@ -1,9 +1,9 @@
 from configparser import ConfigParser
 import os
 import json
-import site
+from pkg_resources import resource_string
 
-CONF_PATH = os.path.join(site.getsitepackages()[0], 'hiveplotter_defaults.ini')
+CONF_PATH = resource_string('hiveplotter', 'hiveplotter_defaults.ini')
 
 
 class Defaults():

@@ -2,4 +2,4 @@ shapely
 networkx
 pyx
 numpy
-PIL
+pillow

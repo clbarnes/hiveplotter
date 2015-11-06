@@ -3,13 +3,13 @@ import shutil
 import site
 import os
 
-CONF_PATH = os.path.join(site.getsitepackages()[0], 'hiveplotter_defaults.ini')
-shutil.copy('hiveplotter_defaults.ini', CONF_PATH)
+# CONF_PATH = os.path.join(site.getsitepackages()[0], 'hiveplotter_defaults.ini')
+# shutil.copy('hiveplotter_defaults.ini', CONF_PATH)
 
 setup(
     name='hiveplotter',
     version='0.1',
-    packages=['hiveplotter', 'hiveplotter.util'],
+    packages=['hiveplotter'],
     url='https://github.com/clbarnes/hiveplotter',
     license='BSD',
     author='clbarnes',
