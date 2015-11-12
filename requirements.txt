@@ -3,3 +3,4 @@ networkx
 pyx
 numpy
 pillow
+setuptools
