@@ -1,11 +1,12 @@
 from configparser import ConfigParser
 import json
-from pkg_resources import resource_string
-
-CONF_PATH = resource_string('hiveplotter', 'hiveplotter_defaults.ini')
+import os
 
 
-class Defaults():
+CONF_PATH = os.path.join(__file__, '..', '..', 'hiveplotter_defaults.ini')
+
+
+class Defaults:
     def __init__(self, config_path):
         cp = ConfigParser()
         cp.read(CONF_PATH)
