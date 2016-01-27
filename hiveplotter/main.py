@@ -14,7 +14,7 @@ import PIL.Image
 from .util.geom_utils import get_projection, place_point_proportion_along_line, mid_line
 from .util.colour_utils import convert_colour, hashable_colour
 from .util.component_classes import Axis, Edge
-from .util.get_defaults import Defaults
+from .util.config_utils import Defaults, ini_serialise
 
 
 TEX_WARNINGS = ["Transparency not available in PostScript, proprietary ghostscript extension code inserted.",
@@ -577,8 +577,7 @@ class HivePlot():
         return d
 
     def dump_config(self, path):
-
-
+        ini_serialise(self, path)
 
 
 def map_to_interval(num_range, proportion):
