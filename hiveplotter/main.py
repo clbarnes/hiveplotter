@@ -86,7 +86,8 @@ class HivePlot():
         self.default_edge_colour = hashable_colour(defaults.default_edge_colour)
         self.edge_alpha = defaults.edge_alpha
 
-        self.__dict__.update(kwargs)
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
         # fields to be filled by the object
         if not node_class_values:
@@ -574,6 +575,10 @@ class HivePlot():
                 d[value] = convert_colour(value)
 
         return d
+
+    def dump_config(self, path):
+
+
 
 
 def map_to_interval(num_range, proportion):

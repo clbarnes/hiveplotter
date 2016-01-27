@@ -40,8 +40,6 @@ def hashable_colour(col):
             return tuple(col)
 
 
-
-
 def categories_to_float(categories):
     """
     Converts a set of categories into a set of floats for use with colour gradients

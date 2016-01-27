@@ -12,10 +12,10 @@ class Defaults:
         cp.read(CONF_PATH)
         for section in cp.sections():
             for key, value in cp[section].items():
-                self.__dict__[key] = json.loads(value)
+                setattr(self, key, json.loads(value))
 
         if config_path:
             cp.read(config_path)
             for section in cp.sections():
                 for key, value in cp[section].items():
-                    self.__dict__[key] = json.loads(value)
+                    setattr(self, key, json.loads(value))
