@@ -1,9 +1,14 @@
 from configparser import ConfigParser
 import json
 import os
+import logging
+import sys
+from io import StringIO
 
+logger = logging.getLogger()
 
-CONF_PATH = os.path.join(__file__, '..', '..', 'hiveplotter_defaults.ini')
+CONF_PATH = os.path.abspath(os.path.join(__file__, '..', '..', 'hiveplotter_defaults.ini'))
+logger.debug('Config path: {}'.format(CONF_PATH))
 
 
 class Defaults:
@@ -20,8 +25,13 @@ class Defaults:
                 for key, value in cp[section].items():
                     setattr(self, key, json.loads(value))
 
+    def __str__(self):
+        return str({
+            key: getattr(self, key) for key in dir(self) if not key.startswith('_')
+        })
 
-def ini_serialise(obj, path):
+
+def ini_serialise(obj, path=None):
     configables = set()
     defaults = ConfigParser()
     defaults.read(CONF_PATH)
@@ -61,5 +71,10 @@ def ini_serialise(obj, path):
     for key, value in sorted(cfg_vals.items()):
         cp.set(category_dict[key], key, value)
 
-    with open(path, 'w') as f:
-        cp.write(f)
+    if path is None:
+        out = StringIO()
+        cp.write(out)
+        return out.getvalue()
+    else:
+        with open(path, 'w') as f:
+            cp.write(f)

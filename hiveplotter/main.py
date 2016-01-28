@@ -5,6 +5,7 @@ import random as rand
 import sys
 import re
 import os
+import logging
 
 import pyx
 import networkx as nx
@@ -19,6 +20,9 @@ from .util.config_utils import Defaults, ini_serialise
 
 TEX_WARNINGS = ["Transparency not available in PostScript, proprietary ghostscript extension code inserted.",
                 r"Ignoring line \S+ in mapping file '.+\.map': Unknown token '<.+'"]
+
+logger = logging.getLogger()
+
 
 class HivePlot():
     """
@@ -44,6 +48,8 @@ class HivePlot():
         self.parent_hiveplot = kwargs.get('parent_hiveplot', None)
 
         defaults = Defaults(config_path)
+
+        logger.debug('Defaults: {}'.format(defaults))
 
         # background parameters
         self.background_proportion = defaults.background_proportion
@@ -576,8 +582,8 @@ class HivePlot():
 
         return d
 
-    def dump_config(self, path):
-        ini_serialise(self, path)
+    def dump_config(self, path=None):
+        return ini_serialise(self, path)
 
 
 def map_to_interval(num_range, proportion):
