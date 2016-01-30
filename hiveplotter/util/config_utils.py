@@ -45,7 +45,7 @@ def ini_serialise(obj, path=None):
             continue
 
         try:
-            cfg_vals[key] = json.dumps(getattr(obj, key))
+            cfg_vals[key] = json.dumps(getattr(obj, key), sort_keys=True)
         except TypeError:
             pass
 
