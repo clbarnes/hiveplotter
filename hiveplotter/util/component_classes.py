@@ -45,7 +45,7 @@ class Axis():
 
     def draw(self, canvas):
         canvas.stroke(pyx.path.line(*geom_utils.linestring_to_coords(self.line)),
-                      [pyx.style.linewidth(self.thickness), self.colour])
+                      [pyx.style.linewidth(self.thickness), pyx.color.rgb(*self.colour)])
 
 
 class Edge():
@@ -91,4 +91,5 @@ class Edge():
         ])
 
         canvas.stroke(edgepath,
-                      [pyx.style.linewidth(self.thickness), self.colour, pyx.color.transparency(1-self.alpha)])
+                      [pyx.style.linewidth(self.thickness), pyx.color.rgb(*self.colour), pyx.color.transparency(
+                          1-self.alpha)])

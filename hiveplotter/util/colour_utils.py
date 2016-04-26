@@ -1,7 +1,10 @@
 import pyx
 
 
-def convert_colour(inp):
+def pyx2tuple(col_obj):
+    return col_obj.r, col_obj.g, col_obj.b
+
+def convert_colour2(inp):
     """
     Convert user input into a pyx colour object.
     :param inp: string corresponding to pyx's RGB or CMYK named colours, tuple of (r,g,b) values, or greyscale value between 0 and 1
@@ -29,6 +32,36 @@ def convert_colour(inp):
         return pyx.color.gray(inp).cmyk()
     except:
         return pyx.color.gray(0.5).cmyk()
+
+
+def convert_colour(inp):
+    """
+    Convert user input into a pyx colour object.
+    :param inp: string corresponding to pyx's RGB or CMYK named colours, tuple of (r,g,b) values, or greyscale value between 0 and 1
+    :return: rgb tuple
+    """
+
+    if isinstance(inp, pyx.color.color):
+        return pyx2tuple(inp.rgb())
+
+    if inp in rgb_names:
+        return pyx2tuple(eval("pyx.color.rgb." + inp))
+    elif inp in cmyk_names:
+        return pyx2tuple(eval("pyx.color.cmyk." + inp).rgb())
+
+    try:
+        length = len(inp)
+        if length == 3:
+            return inp
+        elif length == 4:
+            return pyx2tuple(pyx.color.cmyk(*inp).rgb())
+    except TypeError:
+        pass
+
+    try:
+        return pyx2tuple(pyx.color.gray(inp).rgb())
+    except:
+        return pyx2tuple(pyx.color.gray(0.5).rgb())
 
 
 def hashable_colour(col):

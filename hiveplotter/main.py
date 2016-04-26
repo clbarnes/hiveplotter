@@ -164,7 +164,7 @@ class HivePlot():
         """
         min_x, min_y, max_x, max_y = self._get_bbox()
         colour = convert_colour(self.background_colour)
-        self._background_layer.fill(pyx.path.rect(min_x, min_y, max_x - min_x, max_y - min_y), [colour])
+        self._background_layer.fill(pyx.path.rect(min_x, min_y, max_x - min_x, max_y - min_y), [pyx.color.rgb(*colour)])
 
     def _get_bbox(self, extend=1.1):
         """
@@ -254,7 +254,7 @@ class HivePlot():
             self._foreground_layer.fill(pyx.path.circle(coords[0], coords[1],
                                                         node_size if node_size else map_to_interval(
                                                             self.node_size_range, weight)),
-                                        [this_colour])
+                                        [pyx.color.rgb(*this_colour)])
 
     def draw(self, show=False, save_path=None):
         """
@@ -550,9 +550,9 @@ class HivePlot():
                 colour_dict[str(value)] = convert_colour(value)
 
         for colour_name, colour_obj in colour_dict.items():
-            pyx.text.preamble(r"\definecolor{%s}{cmyk}{%.5f,%.5f,%.5f,%.5f}" % (colour_name,
-                                                                        colour_obj.c, colour_obj.m,
-                                                                        colour_obj.y, colour_obj.k))
+            pyx.text.preamble(r"\definecolor{%s}{rgb}{%.5f,%.5f,%.5f}" % (colour_name,
+                                                                        colour_obj[0], colour_obj[1],
+                                                                          colour_obj[2]))
 
     def _draw_legend(self):
         if not self.edge_category_legend or not self.edge_category_colours:
